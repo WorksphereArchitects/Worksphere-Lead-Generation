@@ -21,8 +21,8 @@ export default function LeadTable({
   return (
     <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
       {/* Header */}
-      <div className="flex items-start justify-between gap-6 border-b px-7 py-7">
-        <div>
+      <div className="flex flex-col gap-4 border-b px-4 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-6 sm:py-6">
+        <div className="min-w-0">
           <h2 className="text-xl font-medium text-foreground">
             Company Intelligence
           </h2>
@@ -41,7 +41,7 @@ export default function LeadTable({
       </div>
 
       {/* Search */}
-      <div className="px-7 py-5">
+      <div className="px-4 py-4 sm:px-6">
         <div className="relative max-w-sm">
           <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 

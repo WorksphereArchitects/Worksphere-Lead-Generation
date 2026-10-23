@@ -581,7 +581,7 @@ export default function Dashboard() {
    */
   if (loadingCompanies) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30">
+      <div className="flex min-h-[calc(100dvh-6rem)] items-center justify-center bg-muted/30 lg:min-h-screen">
         <div className="text-sm text-muted-foreground">
           Loading companies...
         </div>
@@ -594,7 +594,7 @@ export default function Dashboard() {
    */
   if (companyError) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30">
+      <div className="flex min-h-[calc(100dvh-6rem)] items-center justify-center bg-muted/30 lg:min-h-screen">
         <div className="max-w-md rounded-xl border bg-background p-6">
           <h2 className="text-lg font-semibold">
             Failed to load companies
@@ -626,7 +626,7 @@ export default function Dashboard() {
     ).length;
 
   return (
-    <div className="h-screen min-w-0 flex-1 overflow-y-auto">
+    <div className="min-h-[calc(100dvh-6rem)] min-w-0 flex-1 lg:h-screen lg:overflow-y-auto">
 
       <DashboardHeader />
 
@@ -638,12 +638,12 @@ export default function Dashboard() {
       {salesStageError && (
         <div
           role="alert"
-          className="mx-6 mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+          className="mx-4 mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive sm:mx-6"
         >
           {salesStageError}
         </div>
       )}
-      <div className="px-6 pb-6">
+      <div className="px-4 pb-6 sm:px-6">
 
         <LeadTable
           leads={

@@ -147,7 +147,7 @@ export default function QualifiedCompanies() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-[calc(100dvh-6rem)] items-center justify-center lg:min-h-screen">
         <p className="text-sm text-muted-foreground">
           Loading qualified companies...
         </p>
@@ -182,7 +182,7 @@ export default function QualifiedCompanies() {
   // ============================================================
 
   return (
-    <div className="h-screen min-w-0 flex-1 overflow-y-auto p-6">
+    <div className="min-h-[calc(100dvh-6rem)] min-w-0 flex-1 p-4 sm:p-6 lg:h-screen lg:overflow-y-auto">
       {/* ========================================================
           HEADER
       ======================================================== */}

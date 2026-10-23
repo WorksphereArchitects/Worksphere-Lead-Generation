@@ -27,7 +27,7 @@ const stats = [
 
 
   return (
-    <div className="grid gap-4 p-6 sm:grid-cols-2">
+    <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-6">
       {stats.map((stat) => {
         const Icon = stat.icon;
 
