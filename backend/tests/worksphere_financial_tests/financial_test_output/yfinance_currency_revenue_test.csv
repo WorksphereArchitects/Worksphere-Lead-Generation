@@ -1,0 +1,4 @@
+ticker,currency,currency_status,revenue_row,current_period,current_revenue_raw,current_revenue_crore,previous_period,previous_revenue_raw,previous_revenue_crore,revenue_growth_percent,annual_statement_status,error
+ASIANPAINT.NS,INR,INR,Total Revenue,2026-03-31 00:00:00,355409000000.0,35540.9,2025-03-31 00:00:00,338151700000.0,33815.17,5.103419559919418,available,
+RELIANCE.NS,INR,INR,Total Revenue,2026-03-31 00:00:00,10572190000000.0,1057219.0,2025-03-31 00:00:00,9646930000000.0,964693.0,9.591237834212542,available,
+INFY.NS,INR,INR,Total Revenue,2026-03-31 00:00:00,20158000000.0,2015.8,2025-03-31 00:00:00,19277000000.0,1927.7,4.570213207449287,available,

@@ -1,0 +1,1129 @@
+{
+  "report": {
+    "company": "Asian Paints Limited",
+    "symbol": "ASIANPAINT",
+    "sector": "Cement / Building Materials / Ceramics",
+    "classification_status": "Classified",
+    "target_for_worksphere": true,
+    "year": "2026",
+    "file": "storage\\reports\\AR_29385_ASIANPAINT_2025_2026_A_26278926_12062026160918.pdf",
+    "downloaded": false,
+    "local_cache_hit": true
+  },
+  "retrieval": {
+    "retrieved_candidates": 62,
+    "gemini_packets": 49,
+    "context_chars": 660625,
+    "estimated_context_tokens": 188750,
+    "source_candidate_count": 62
+  },
+  "model_run": {
+    "model_attempted": "gemini-3.5-flash",
+    "model_used": "gemini-3.5-flash",
+    "flash_attempts": 3,
+    "flash_429_retries": 0,
+    "fallback_used": false,
+    "fallback_reason": null
+  },
+  "gemini": {
+    "signals": [
+      {
+        "is_valid_signal": true,
+        "signal_type": "plant_commissioning",
+        "event_state": "commissioned",
+        "headline": "Asian Paints Commissions Wada Manufacturing Plant in Maharashtra",
+        "summary": "Asian Paints commissioned a new manufacturing plant for its bath fittings and sanitaryware business at Wada, Maharashtra. Initial operations have commenced and ramp-up is progressing as planned to strengthen supply capabilities.",
+        "why_it_matters": "The commissioning of this modern technology facility may support future volume growth, improve responsiveness, and provide new commercial and service-led opportunities for WorkSphere.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "Wada",
+            "Maharashtra",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [],
+        "timeline": "FY 2025-26",
+        "physical_consequence": "Operational manufacturing plant set up with modern technology.",
+        "supporting_facts": [
+          "Initial operations have commenced and ramp-up is progressing as planned.",
+          "Aims to improve productivity, ensure consistent product quality, and support volume growth."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            1,
+            2,
+            10
+          ],
+          "page": null
+        },
+        "confidence": 0.95
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "plant_commissioning",
+        "event_state": "commissioned",
+        "headline": "White Cement Plant Commissioned in UAE for Backward Integration",
+        "summary": "As part of Asian Paints' backward integration programme, a white cement plant was successfully commissioned in Fujairah, UAE, and integrated into the India supply chain.",
+        "why_it_matters": "This first white cement manufacturing facility helps secure raw materials for wall putty, which could optimize long-term supply continuity and cost structures.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "Fujairah",
+            "United Arab Emirates",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [
+          "clinker capacity of 800 tonnes per day"
+        ],
+        "timeline": "FY 2025-26",
+        "physical_consequence": "Active white cement manufacturing plant operating in Fujairah Free Zone, UAE.",
+        "supporting_facts": [
+          "Fully integrated into the Indian supply chain.",
+          "Designed clinker capacity is 800 tonnes per day.",
+          "Operated through wholly owned subsidiary company, Asian White Inc. FZE."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            1,
+            2,
+            10,
+            33,
+            38,
+            49
+          ],
+          "page": null
+        },
+        "confidence": 0.95
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "merger",
+        "event_state": "completed",
+        "headline": "NCLT Approves Amalgamation of Asian Paints (Polymers) Private Limited",
+        "summary": "The Hon'ble National Company Law Tribunal, Mumbai approved the Scheme of Amalgamation of wholly owned subsidiary Asian Paints (Polymers) Private Limited with the parent company w.e.f. March 31, 2026.",
+        "why_it_matters": "This merger integrates the in-house Vinyl Acetate Ethylene (VAE) Emulsion and Vinyl Acetate Monomer (VAM) manufacturing in Dahej, which could consolidate operations and supply logistics.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "Dahej",
+            "Gujarat",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [],
+        "timeline": "Effective from 31st March 2026 with appointed date of 1st April 2025",
+        "physical_consequence": "APPPL dissolved and integrated as part of the standalone entity.",
+        "supporting_facts": [
+          "NCLT sanctioned the Scheme on 10th March 2026.",
+          "Became effective on 31st March 2026.",
+          "All equity shares of APPPL stand cancelled and extinguished."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            3,
+            12,
+            15,
+            17,
+            27
+          ],
+          "page": null
+        },
+        "confidence": 0.95
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "acquisition",
+        "event_state": "completed",
+        "headline": "Asian Paints Acquires Remaining 40% Stake in Obgenix Software",
+        "summary": "Asian Paints acquired the remaining 40% equity stake in Obgenix Software Private Limited (White Teak) from its promoters, making it a wholly owned subsidiary.",
+        "why_it_matters": "This transaction establishes full control over the decorative lighting brand 'White Teak', consolidating home decor operations under a single brand ecosystem.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "India"
+          ]
+        },
+        "investment": {
+          "values": [
+            "₹ 188 crores"
+          ]
+        },
+        "physical_scale": [],
+        "timeline": "27th June 2025",
+        "physical_consequence": "White Teak becomes a wholly owned subsidiary of Asian Paints.",
+        "supporting_facts": [
+          "Acquired the remaining 40% stake.",
+          "Consideration paid was ₹ 188 crores.",
+          "White Teak now functions as a 100% owned subsidiary."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            3,
+            15,
+            17,
+            27
+          ],
+          "page": null
+        },
+        "confidence": 0.98
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "leadership_change",
+        "event_state": "approved",
+        "headline": "Sudhir Sitapati Appointed as Additional and Independent Director",
+        "summary": "The Board of Directors approved the appointment of Mr. Sudhir Sitapati as an Additional and Independent Director of the Company for a five-year term.",
+        "why_it_matters": "Bringing in leadership with extensive consumer products sector experience could direct strategic decisions and board alignment regarding brand transformations.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [],
+        "timeline": "Term commencing from 29th May 2026 up to 28th May 2031",
+        "physical_consequence": "Governance changes on the Board of Directors.",
+        "supporting_facts": [
+          "Approved at the Board meeting held on 29th May 2026.",
+          "Subject to the approval of shareholders at the ensuing 80th AGM.",
+          "Appointed for five consecutive years."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            3,
+            12,
+            14,
+            15,
+            17,
+            19,
+            25,
+            36
+          ],
+          "page": null
+        },
+        "confidence": 0.95
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "facility_construction",
+        "event_state": "proposed",
+        "headline": "Proposed Water-Based Paint Plant in Madhya Pradesh",
+        "summary": "Asian Paints announced a proposal to set up a water-based paint manufacturing facility in Madhya Pradesh with an estimated investment of ₹ 2,000 crores.",
+        "why_it_matters": "A significant infrastructure spend that will require construction partners, environmental planning, and physical supply-chain configuration upon receiving clearances.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "Madhya Pradesh",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": [
+            "~₹ 2,000 crores"
+          ]
+        },
+        "physical_scale": [
+          "4 lakh KL per annum"
+        ],
+        "timeline": "Commencement within three years from the date of receipt of Environmental Clearance",
+        "physical_consequence": "New water-based paint manufacturing facility to be constructed.",
+        "supporting_facts": [
+          "Proposed capacity of 4 lakh KL per annum.",
+          "Estimated investment of ~₹ 2,000 crores.",
+          "Requires Environmental Clearance to commence operations."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            37,
+            38
+          ],
+          "page": null
+        },
+        "confidence": 0.95
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "facility_construction",
+        "event_state": "planned",
+        "headline": "Berger Paints Emirates Initiates UAE Second Paint Facility",
+        "summary": "Step-down subsidiary Berger Paints Emirates Ltd Co initiated the process for setting up its second paint manufacturing facility in Abu Dhabi, UAE.",
+        "why_it_matters": "Provides WorkSphere with direct visibility into international physical capital layout and new localized production capability within UAE economic zones.",
+        "company": "Berger Paints Emirates Ltd Co (L.L.C)",
+        "location": {
+          "mentions": [
+            "Khalifa Economic Zones Abu Dhabi",
+            "Abu Dhabi",
+            "United Arab Emirates"
+          ]
+        },
+        "investment": {
+          "values": [
+            "AED 140 million",
+            "~₹ 340 crores"
+          ]
+        },
+        "physical_scale": [
+          "55,800 KL per annum"
+        ],
+        "timeline": "Ongoing planning phase in FY 2025-26",
+        "physical_consequence": "New paint manufacturing facility in Abu Dhabi.",
+        "supporting_facts": [
+          "Estimated investment of AED 140 million (~₹ 340 crores).",
+          "Initial planned capacity of 55,800 KL per annum.",
+          "Planned within the Khalifa Economic Zones Abu Dhabi."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            37,
+            38
+          ],
+          "page": null
+        },
+        "confidence": 0.95
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "facility_construction",
+        "event_state": "ongoing",
+        "headline": "Construction of VAM-VAE Manufacturing Ecosystem at Dahej",
+        "summary": "The VAM-VAE backward integration project at Dahej plant, consisting of Vinyl Acetate Monomer and Vinyl Acetate Ethylene Emulsion units, is in active progress.",
+        "why_it_matters": "This massive project represents India's first integrated VAM-VAE facility, creating a major localized petrochemical-derived raw material platform.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "Dahej",
+            "Gujarat",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": [
+            "₹ 1,446.56 crores"
+          ]
+        },
+        "physical_scale": [
+          "150,000 MT VAE annual production capacity",
+          "100,000 MT VAM annual production capacity",
+          "Spread across 25 acres"
+        ],
+        "timeline": "Progressing during FY 2025-26",
+        "physical_consequence": "Active construction site of an integrated VAM-VAE manufacturing ecosystem.",
+        "supporting_facts": [
+          "The project is spread across 25 acres.",
+          "₹ 1,446.56 crores was hypothecated as security for borrowings in CWIP as of 31st March 2026.",
+          "The facility validated process design and safety systems using the Khandala pilot reactor."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            8,
+            26,
+            33,
+            47,
+            49
+          ],
+          "page": null
+        },
+        "confidence": 0.95
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "capacity_expansion",
+        "event_state": "ongoing",
+        "headline": "Brownfield Expansion and Transformation at Ankleshwar Plant",
+        "summary": "Asian Paints is executing a brownfield expansion and automation transformation of its Ankleshwar facility to increase production capacity and flexibility.",
+        "why_it_matters": "A multi-phase brownfield scale-up indicates continuous investment in localized premium wood finishes and automated supply infrastructure.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "Ankleshwar",
+            "Gujarat",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [
+          "Capacity of 2.5 Lakhs KL",
+          "837 SKUs",
+          "2.5x increase in capacity"
+        ],
+        "timeline": "Phased ramp-up ongoing in FY 2025-26",
+        "physical_consequence": "Upgraded, automated flexi-manufacturing platform at Ankleshwar plant.",
+        "supporting_facts": [
+          "Represents a 2.5x increase in capacity.",
+          "Designed as a flexi-automated, multi-SKU platform supporting 837 SKUs.",
+          "Executed brownfield expansion alongside ongoing operations."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            33,
+            49
+          ],
+          "page": null
+        },
+        "confidence": 0.95
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "capacity_expansion",
+        "event_state": "completed",
+        "headline": "APPPG Completes Largest Capacity Expansion at Taloja Plant",
+        "summary": "Joint venture company Asian Paints PPG Private Limited executed its largest capacity expansion program to date, increasing capacity in Taloja by 60%.",
+        "why_it_matters": "Substantial capacity addition in industrial coatings boosts local supply capabilities and operational footprint.",
+        "company": "Asian Paints PPG Private Limited",
+        "location": {
+          "mentions": [
+            "Taloja",
+            "Maharashtra",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [
+          "In-house manufacturing capacity increased by 60%"
+        ],
+        "timeline": "Completed in FY 2025-26",
+        "physical_consequence": "Upgraded and expanded industrial coatings plant.",
+        "supporting_facts": [
+          "Largest capacity expansion program executed to date by APPPG.",
+          "Aimed at strengthening supply responsiveness and supporting future industrial volume requirements."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            30
+          ],
+          "page": null
+        },
+        "confidence": 0.95
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "sustainability",
+        "event_state": "completed",
+        "headline": "On-Site Solar PV Systems Commissioned at Ankleshwar and Khandala",
+        "summary": "Asian Paints commissioned on-site solar photovoltaic (PV) systems with a combined capacity of 3 MWp across its Ankleshwar and Khandala facilities.",
+        "why_it_matters": "Shows concrete execution of sustainability/decarbonization investments that change the physical energy footprint of existing sites.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "Ankleshwar",
+            "Khandala",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [
+          "Combined capacity of 3 MWp",
+          "Expected to generate ~4.5 Million kWh annually",
+          "Avoids ~3,200 tCO2e emissions each year"
+        ],
+        "timeline": "FY 2025-26",
+        "physical_consequence": "Operational solar photovoltaic systems at Ankleshwar and Khandala plants.",
+        "supporting_facts": [
+          "Combined PV capacity of 3 MWp.",
+          "Expected to generate approximately 4.5 million kWh of renewable electricity annually.",
+          "Lowering long-term exposure to grid power price volatility."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            20,
+            31
+          ],
+          "page": null
+        },
+        "confidence": 0.95
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "merger",
+        "event_state": "approved",
+        "headline": "Amalgamation of Nova Surface-Care with Harind Chemicals approved",
+        "summary": "The Boards of Directors of Harind Chemicals and Pharmaceuticals Private Limited and Nova Surface-Care Centre Private Limited approved the Scheme of Amalgamation of Nova with Harind.",
+        "why_it_matters": "A strategic organizational realignment of subsidiary companies within the broader group portfolio.",
+        "company": "Harind Chemicals and Pharmaceuticals Private Limited",
+        "location": {
+          "mentions": [
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [],
+        "timeline": "Approved on 24th March 2026",
+        "physical_consequence": "Nova Surface-Care to be legally merged into Harind Chemicals.",
+        "supporting_facts": [
+          "Approved at respective Board meetings on 24th March 2026.",
+          "Nova is a wholly owned subsidiary of Harind.",
+          "Subject to necessary statutory and regulatory approvals."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            3,
+            15,
+            17
+          ],
+          "page": null
+        },
+        "confidence": 0.95
+      }
+    ],
+    "negative_evidence": [
+      {
+        "category": "Leadership",
+        "statement": "During the year, there were no changes in the Directors of the Company, except for Mr. Ashish Choksi, who was appointed as a Non-Executive Director of the Company with effect from 1st April 2025.",
+        "source_candidate_ids": [
+          3,
+          15,
+          17
+        ]
+      },
+      {
+        "category": "KMP",
+        "statement": "During the year, there were no changes in the KMP.",
+        "source_candidate_ids": [
+          3,
+          15,
+          17
+        ]
+      },
+      {
+        "category": "Business Activity",
+        "statement": "During the year, there was no change in the nature of the Company’s business.",
+        "source_candidate_ids": [
+          37,
+          38
+        ]
+      }
+    ]
+  },
+  "source_resolution": {
+    "signals": [
+      {
+        "is_valid_signal": true,
+        "signal_type": "plant_commissioning",
+        "event_state": "commissioned",
+        "headline": "Asian Paints Commissions Wada Manufacturing Plant in Maharashtra",
+        "summary": "Asian Paints commissioned a new manufacturing plant for its bath fittings and sanitaryware business at Wada, Maharashtra. Initial operations have commenced and ramp-up is progressing as planned to strengthen supply capabilities.",
+        "why_it_matters": "The commissioning of this modern technology facility may support future volume growth, improve responsiveness, and provide new commercial and service-led opportunities for WorkSphere.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "Wada",
+            "Maharashtra",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [],
+        "timeline": "FY 2025-26",
+        "physical_consequence": "Operational manufacturing plant set up with modern technology.",
+        "supporting_facts": [
+          "Initial operations have commenced and ramp-up is progressing as planned.",
+          "Aims to improve productivity, ensure consistent product quality, and support volume growth."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            10,
+            1,
+            2
+          ],
+          "page": null,
+          "source_sentence_indexes": [
+            645,
+            646,
+            647
+          ],
+          "excerpt": "The facility has been set up with modern technology aimed at improving productivity and ensuring consistent product quality. Initial operations have commenced and ramp-up is progressing as planned. This expansion is expected to strengthen supply capabilities, support future volume growth and improve responsiveness to market demand."
+        },
+        "confidence": 0.95,
+        "source_resolution_status": "resolved"
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "plant_commissioning",
+        "event_state": "commissioned",
+        "headline": "White Cement Plant Commissioned in UAE for Backward Integration",
+        "summary": "As part of Asian Paints' backward integration programme, a white cement plant was successfully commissioned in Fujairah, UAE, and integrated into the India supply chain.",
+        "why_it_matters": "This first white cement manufacturing facility helps secure raw materials for wall putty, which could optimize long-term supply continuity and cost structures.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "Fujairah",
+            "United Arab Emirates",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [
+          "clinker capacity of 800 tonnes per day"
+        ],
+        "timeline": "FY 2025-26",
+        "physical_consequence": "Active white cement manufacturing plant operating in Fujairah Free Zone, UAE.",
+        "supporting_facts": [
+          "Fully integrated into the Indian supply chain.",
+          "Designed clinker capacity is 800 tonnes per day.",
+          "Operated through wholly owned subsidiary company, Asian White Inc. FZE."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            49,
+            10,
+            1,
+            2,
+            33,
+            38
+          ],
+          "page": null,
+          "source_sentence_indexes": [
+            320,
+            645,
+            646,
+            647,
+            1184,
+            2561
+          ],
+          "excerpt": "It will also enhance our ability to develop unique and differentiated product attributes, further enhancing our competitive edge. The facility has been set up with modern technology aimed at improving productivity and ensuring consistent product quality. Initial operations have commenced and ramp-up is progressing as planned. This expansion is expected to strengthen supply capabilities, support future volume growth and improve responsiveness to market demand. The facility will advance next-generation emulsion technologies and enhances the Company’s ability to develop differentiated and sustainable product offerings. Proposed paint plant in the state of Madhya Pradesh The Company had announced its proposal to set up a water-based paint manufacturing facility in the State of Madhya Pradesh with a proposed capacity of 4 lakh KL per annum and an estimated investment of ~` 2,000 crores."
+        },
+        "confidence": 0.95,
+        "source_resolution_status": "resolved"
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "merger",
+        "event_state": "completed",
+        "headline": "NCLT Approves Amalgamation of Asian Paints (Polymers) Private Limited",
+        "summary": "The Hon'ble National Company Law Tribunal, Mumbai approved the Scheme of Amalgamation of wholly owned subsidiary Asian Paints (Polymers) Private Limited with the parent company w.e.f. March 31, 2026.",
+        "why_it_matters": "This merger integrates the in-house Vinyl Acetate Ethylene (VAE) Emulsion and Vinyl Acetate Monomer (VAM) manufacturing in Dahej, which could consolidate operations and supply logistics.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "Dahej",
+            "Gujarat",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [],
+        "timeline": "Effective from 31st March 2026 with appointed date of 1st April 2025",
+        "physical_consequence": "APPPL dissolved and integrated as part of the standalone entity.",
+        "supporting_facts": [
+          "NCLT sanctioned the Scheme on 10th March 2026.",
+          "Became effective on 31st March 2026.",
+          "All equity shares of APPPL stand cancelled and extinguished."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            12,
+            3,
+            15,
+            17,
+            27
+          ],
+          "page": null,
+          "source_sentence_indexes": [
+            2509,
+            2636,
+            2637,
+            2638,
+            8058
+          ],
+          "excerpt": "May 2014 21st October 2021 29th [Promoter(s) & Promoter(s) Group], and a Managing Director & CEO. During the year, there were no changes in the Directors of the Company, except for Mr. Ashish Choksi, who was appointed as a Non-Executive Director of the Company with effect from 1st April 2025. The Managing Director & CEO and Independent Directors of the Company are not liable to retire by rotation. Accordingly, gross obligation of ₹ 188.00 crores towards further stake acquisition along with Non-Controlling interest of ₹ 80.03 crores was derecognised (Refer note 15)."
+        },
+        "confidence": 0.95,
+        "source_resolution_status": "resolved"
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "acquisition",
+        "event_state": "completed",
+        "headline": "Asian Paints Acquires Remaining 40% Stake in Obgenix Software",
+        "summary": "Asian Paints acquired the remaining 40% equity stake in Obgenix Software Private Limited (White Teak) from its promoters, making it a wholly owned subsidiary.",
+        "why_it_matters": "This transaction establishes full control over the decorative lighting brand 'White Teak', consolidating home decor operations under a single brand ecosystem.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "India"
+          ]
+        },
+        "investment": {
+          "values": [
+            "₹ 188 crores"
+          ]
+        },
+        "physical_scale": [],
+        "timeline": "27th June 2025",
+        "physical_consequence": "White Teak becomes a wholly owned subsidiary of Asian Paints.",
+        "supporting_facts": [
+          "Acquired the remaining 40% stake.",
+          "Consideration paid was ₹ 188 crores.",
+          "White Teak now functions as a 100% owned subsidiary."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            3,
+            15,
+            17,
+            27
+          ],
+          "page": null,
+          "source_sentence_indexes": [
+            2636,
+            2637,
+            2638,
+            8058
+          ],
+          "excerpt": "[Promoter(s) & Promoter(s) Group], and a Managing Director & CEO. During the year, there were no changes in the Directors of the Company, except for Mr. Ashish Choksi, who was appointed as a Non-Executive Director of the Company with effect from 1st April 2025. The Managing Director & CEO and Independent Directors of the Company are not liable to retire by rotation. Accordingly, gross obligation of ₹ 188.00 crores towards further stake acquisition along with Non-Controlling interest of ₹ 80.03 crores was derecognised (Refer note 15)."
+        },
+        "confidence": 0.98,
+        "source_resolution_status": "resolved"
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "leadership_change",
+        "event_state": "approved",
+        "headline": "Sudhir Sitapati Appointed as Additional and Independent Director",
+        "summary": "The Board of Directors approved the appointment of Mr. Sudhir Sitapati as an Additional and Independent Director of the Company for a five-year term.",
+        "why_it_matters": "Bringing in leadership with extensive consumer products sector experience could direct strategic decisions and board alignment regarding brand transformations.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [],
+        "timeline": "Term commencing from 29th May 2026 up to 28th May 2031",
+        "physical_consequence": "Governance changes on the Board of Directors.",
+        "supporting_facts": [
+          "Approved at the Board meeting held on 29th May 2026.",
+          "Subject to the approval of shareholders at the ensuing 80th AGM.",
+          "Appointed for five consecutive years."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            14,
+            25,
+            12,
+            3,
+            15,
+            17,
+            19,
+            36
+          ],
+          "page": null,
+          "source_sentence_indexes": [
+            2445,
+            2463,
+            2509,
+            2636,
+            2637,
+            2638,
+            3375,
+            3442
+          ],
+          "excerpt": "A copy of the draft letter of appointment of Mr. Milind Sarwate setting out the terms and conditions of appointment has been uploaded on the website of the Company at www.asianpaints.com. A copy of the draft letter of appointment of Mr. Sudhir Sitapati setting out the terms and conditions of appointment has been uploaded on the website of the Company at www.asianpaints.com. May 2014 21st October 2021 29th [Promoter(s) & Promoter(s) Group], and a Managing Director & CEO. During the year, there were no changes in the Directors of the Company, except for Mr. Ashish Choksi, who was appointed as a Non-Executive Director of the Company with effect from 1st April 2025. The Managing Director & CEO and Independent Directors of the Company are not liable to retire by rotation. d. Periodic and strategic updates including press releases to be submitted with the stock exchanges are shared with the Board members to keep them abreast of the material developments relating to the Company."
+        },
+        "confidence": 0.95,
+        "source_resolution_status": "resolved"
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "facility_construction",
+        "event_state": "proposed",
+        "headline": "Proposed Water-Based Paint Plant in Madhya Pradesh",
+        "summary": "Asian Paints announced a proposal to set up a water-based paint manufacturing facility in Madhya Pradesh with an estimated investment of ₹ 2,000 crores.",
+        "why_it_matters": "A significant infrastructure spend that will require construction partners, environmental planning, and physical supply-chain configuration upon receiving clearances.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "Madhya Pradesh",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": [
+            "~₹ 2,000 crores"
+          ]
+        },
+        "physical_scale": [
+          "4 lakh KL per annum"
+        ],
+        "timeline": "Commencement within three years from the date of receipt of Environmental Clearance",
+        "physical_consequence": "New water-based paint manufacturing facility to be constructed.",
+        "supporting_facts": [
+          "Proposed capacity of 4 lakh KL per annum.",
+          "Estimated investment of ~₹ 2,000 crores.",
+          "Requires Environmental Clearance to commence operations."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            37,
+            38
+          ],
+          "page": null,
+          "source_sentence_indexes": [
+            2560,
+            2561
+          ],
+          "excerpt": "This mainly comprises of spends for capacity expansion for paint business, regular capital expenditure at various plant locations and other Company offices/warehouses, technological advancements, safety and ESG expenditure, backward integration projects, and general maintenance. Proposed paint plant in the state of Madhya Pradesh The Company had announced its proposal to set up a water-based paint manufacturing facility in the State of Madhya Pradesh with a proposed capacity of 4 lakh KL per annum and an estimated investment of ~` 2,000 crores."
+        },
+        "confidence": 0.95,
+        "source_resolution_status": "resolved"
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "facility_construction",
+        "event_state": "planned",
+        "headline": "Berger Paints Emirates Initiates UAE Second Paint Facility",
+        "summary": "Step-down subsidiary Berger Paints Emirates Ltd Co initiated the process for setting up its second paint manufacturing facility in Abu Dhabi, UAE.",
+        "why_it_matters": "Provides WorkSphere with direct visibility into international physical capital layout and new localized production capability within UAE economic zones.",
+        "company": "Berger Paints Emirates Ltd Co (L.L.C)",
+        "location": {
+          "mentions": [
+            "Khalifa Economic Zones Abu Dhabi",
+            "Abu Dhabi",
+            "United Arab Emirates"
+          ]
+        },
+        "investment": {
+          "values": [
+            "AED 140 million",
+            "~₹ 340 crores"
+          ]
+        },
+        "physical_scale": [
+          "55,800 KL per annum"
+        ],
+        "timeline": "Ongoing planning phase in FY 2025-26",
+        "physical_consequence": "New paint manufacturing facility in Abu Dhabi.",
+        "supporting_facts": [
+          "Estimated investment of AED 140 million (~₹ 340 crores).",
+          "Initial planned capacity of 55,800 KL per annum.",
+          "Planned within the Khalifa Economic Zones Abu Dhabi."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            37,
+            38
+          ],
+          "page": null,
+          "source_sentence_indexes": [
+            2560,
+            2561
+          ],
+          "excerpt": "This mainly comprises of spends for capacity expansion for paint business, regular capital expenditure at various plant locations and other Company offices/warehouses, technological advancements, safety and ESG expenditure, backward integration projects, and general maintenance. Proposed paint plant in the state of Madhya Pradesh The Company had announced its proposal to set up a water-based paint manufacturing facility in the State of Madhya Pradesh with a proposed capacity of 4 lakh KL per annum and an estimated investment of ~` 2,000 crores."
+        },
+        "confidence": 0.95,
+        "source_resolution_status": "resolved"
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "facility_construction",
+        "event_state": "ongoing",
+        "headline": "Construction of VAM-VAE Manufacturing Ecosystem at Dahej",
+        "summary": "The VAM-VAE backward integration project at Dahej plant, consisting of Vinyl Acetate Monomer and Vinyl Acetate Ethylene Emulsion units, is in active progress.",
+        "why_it_matters": "This massive project represents India's first integrated VAM-VAE facility, creating a major localized petrochemical-derived raw material platform.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "Dahej",
+            "Gujarat",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": [
+            "₹ 1,446.56 crores"
+          ]
+        },
+        "physical_scale": [
+          "150,000 MT VAE annual production capacity",
+          "100,000 MT VAM annual production capacity",
+          "Spread across 25 acres"
+        ],
+        "timeline": "Progressing during FY 2025-26",
+        "physical_consequence": "Active construction site of an integrated VAM-VAE manufacturing ecosystem.",
+        "supporting_facts": [
+          "The project is spread across 25 acres.",
+          "₹ 1,446.56 crores was hypothecated as security for borrowings in CWIP as of 31st March 2026.",
+          "The facility validated process design and safety systems using the Khandala pilot reactor."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            49,
+            33,
+            8,
+            26,
+            47
+          ],
+          "page": null,
+          "source_sentence_indexes": [
+            320,
+            1184,
+            5814,
+            5815,
+            7178
+          ],
+          "excerpt": "It will also enhance our ability to develop unique and differentiated product attributes, further enhancing our competitive edge. The facility will advance next-generation emulsion technologies and enhances the Company’s ability to develop differentiated and sustainable product offerings. The amount of contractual commitments for the acquisition of property, plant and equipment is disclosed in Note 32(b). ^Includes leasehold land of ₹ 4.56 crores which is not being amortised as the Company has an option to convert it into freehold on payment of a nominal amount. Buildings 71.39 - - - - 71.39 20.55 - 2.74 - - 23.29 48.10 Equipment 81.81 - 3.08 - - 84.89 60.81 - 5.65 - - 66.46 18.43 Leasehold Improvements 0.31 - - - - 0.31 0.15 - 0.03 - - 0.18 0.13 Furniture and Fixtures 175.17 (0.23) 36.44 7.11 0.94 203.33 93.86 (0.12) 19.50 5.75 0.91 106.58 96.75 Vehicles 27.11 (3.31) 1.93 0.17 - 25.56 21.44 (1.79) 1.59 0.17 - 21.07 4.49 Office Equipment 144.70 (1.01) 44.24 12.27 6.61 169.05 100.53 (0.58) 16.79 9.45 5.67 101.62 67.43 Leasehold improvements 27.44 0.01 92.90 0.43 - 119.92 16.43 0.01 6.10 0.45 - 22.09 97.83 Assets Given on Operating Lease : Tinting systems 3.68 0.11 - 1.70 - 2.09 3.14 0.10 0.18 1.63 - 1.79 0.30 Total 8,251.90 (28.71) 3,100.17 59.74 160.64 11,102.98 3,805.70 (11.00) 617.08 53.00 43.42 4,315.36 6,787.62 The amount of contractual commitments for the acquisition of property, plant and equipment is disclosed in Note 32 (b)."
+        },
+        "confidence": 0.95,
+        "source_resolution_status": "resolved"
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "capacity_expansion",
+        "event_state": "ongoing",
+        "headline": "Brownfield Expansion and Transformation at Ankleshwar Plant",
+        "summary": "Asian Paints is executing a brownfield expansion and automation transformation of its Ankleshwar facility to increase production capacity and flexibility.",
+        "why_it_matters": "A multi-phase brownfield scale-up indicates continuous investment in localized premium wood finishes and automated supply infrastructure.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "Ankleshwar",
+            "Gujarat",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [
+          "Capacity of 2.5 Lakhs KL",
+          "837 SKUs",
+          "2.5x increase in capacity"
+        ],
+        "timeline": "Phased ramp-up ongoing in FY 2025-26",
+        "physical_consequence": "Upgraded, automated flexi-manufacturing platform at Ankleshwar plant.",
+        "supporting_facts": [
+          "Represents a 2.5x increase in capacity.",
+          "Designed as a flexi-automated, multi-SKU platform supporting 837 SKUs.",
+          "Executed brownfield expansion alongside ongoing operations."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            49,
+            33
+          ],
+          "page": null,
+          "source_sentence_indexes": [
+            320,
+            1184
+          ],
+          "excerpt": "It will also enhance our ability to develop unique and differentiated product attributes, further enhancing our competitive edge. The facility will advance next-generation emulsion technologies and enhances the Company’s ability to develop differentiated and sustainable product offerings."
+        },
+        "confidence": 0.95,
+        "source_resolution_status": "resolved"
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "capacity_expansion",
+        "event_state": "completed",
+        "headline": "APPPG Completes Largest Capacity Expansion at Taloja Plant",
+        "summary": "Joint venture company Asian Paints PPG Private Limited executed its largest capacity expansion program to date, increasing capacity in Taloja by 60%.",
+        "why_it_matters": "Substantial capacity addition in industrial coatings boosts local supply capabilities and operational footprint.",
+        "company": "Asian Paints PPG Private Limited",
+        "location": {
+          "mentions": [
+            "Taloja",
+            "Maharashtra",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [
+          "In-house manufacturing capacity increased by 60%"
+        ],
+        "timeline": "Completed in FY 2025-26",
+        "physical_consequence": "Upgraded and expanded industrial coatings plant.",
+        "supporting_facts": [
+          "Largest capacity expansion program executed to date by APPPG.",
+          "Aimed at strengthening supply responsiveness and supporting future industrial volume requirements."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            30
+          ],
+          "page": null,
+          "source_sentence_indexes": [
+            817
+          ],
+          "excerpt": "This investment is aimed at strengthening supply responsiveness and supporting future volume requirements."
+        },
+        "confidence": 0.95,
+        "source_resolution_status": "resolved"
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "sustainability",
+        "event_state": "completed",
+        "headline": "On-Site Solar PV Systems Commissioned at Ankleshwar and Khandala",
+        "summary": "Asian Paints commissioned on-site solar photovoltaic (PV) systems with a combined capacity of 3 MWp across its Ankleshwar and Khandala facilities.",
+        "why_it_matters": "Shows concrete execution of sustainability/decarbonization investments that change the physical energy footprint of existing sites.",
+        "company": "Asian Paints Limited",
+        "location": {
+          "mentions": [
+            "Ankleshwar",
+            "Khandala",
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [
+          "Combined capacity of 3 MWp",
+          "Expected to generate ~4.5 Million kWh annually",
+          "Avoids ~3,200 tCO2e emissions each year"
+        ],
+        "timeline": "FY 2025-26",
+        "physical_consequence": "Operational solar photovoltaic systems at Ankleshwar and Khandala plants.",
+        "supporting_facts": [
+          "Combined PV capacity of 3 MWp.",
+          "Expected to generate approximately 4.5 million kWh of renewable electricity annually.",
+          "Lowering long-term exposure to grid power price volatility."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            31,
+            20
+          ],
+          "page": null,
+          "source_sentence_indexes": [
+            1276,
+            1277
+          ],
+          "excerpt": "We are advancing decarbonisation efforts through initiatives such as formulation optimisation, adoption of low-carbon alternatives, promotion of lower-emission transport, and deeper integration of sustainability across our value chain. E2: Renewable Energy Our decorative paint manufacturing facilities have a total installed renewable energy capacity of 51.9 MW, comprising 27.6 MW of solar and 24.3 MW of wind power."
+        },
+        "confidence": 0.95,
+        "source_resolution_status": "resolved"
+      },
+      {
+        "is_valid_signal": true,
+        "signal_type": "merger",
+        "event_state": "approved",
+        "headline": "Amalgamation of Nova Surface-Care with Harind Chemicals approved",
+        "summary": "The Boards of Directors of Harind Chemicals and Pharmaceuticals Private Limited and Nova Surface-Care Centre Private Limited approved the Scheme of Amalgamation of Nova with Harind.",
+        "why_it_matters": "A strategic organizational realignment of subsidiary companies within the broader group portfolio.",
+        "company": "Harind Chemicals and Pharmaceuticals Private Limited",
+        "location": {
+          "mentions": [
+            "India"
+          ]
+        },
+        "investment": {
+          "values": []
+        },
+        "physical_scale": [],
+        "timeline": "Approved on 24th March 2026",
+        "physical_consequence": "Nova Surface-Care to be legally merged into Harind Chemicals.",
+        "supporting_facts": [
+          "Approved at respective Board meetings on 24th March 2026.",
+          "Nova is a wholly owned subsidiary of Harind.",
+          "Subject to necessary statutory and regulatory approvals."
+        ],
+        "evidence": {
+          "source_candidate_ids": [
+            3,
+            15,
+            17
+          ],
+          "page": null,
+          "source_sentence_indexes": [
+            2636,
+            2637,
+            2638
+          ],
+          "excerpt": "[Promoter(s) & Promoter(s) Group], and a Managing Director & CEO. During the year, there were no changes in the Directors of the Company, except for Mr. Ashish Choksi, who was appointed as a Non-Executive Director of the Company with effect from 1st April 2025. The Managing Director & CEO and Independent Directors of the Company are not liable to retire by rotation."
+        },
+        "confidence": 0.95,
+        "source_resolution_status": "resolved"
+      }
+    ],
+    "negative_evidence": [
+      {
+        "category": "Leadership",
+        "statement": "During the year, there were no changes in the Directors of the Company, except for Mr. Ashish Choksi, who was appointed as a Non-Executive Director of the Company with effect from 1st April 2025.",
+        "source_candidate_ids": [
+          3,
+          15,
+          17
+        ],
+        "source_sentence_indexes": [
+          2636,
+          2637,
+          2638
+        ],
+        "excerpt": "[Promoter(s) & Promoter(s) Group], and a Managing Director & CEO. During the year, there were no changes in the Directors of the Company, except for Mr. Ashish Choksi, who was appointed as a Non-Executive Director of the Company with effect from 1st April 2025. The Managing Director & CEO and Independent Directors of the Company are not liable to retire by rotation.",
+        "source_resolution_status": "resolved"
+      },
+      {
+        "category": "KMP",
+        "statement": "During the year, there were no changes in the KMP.",
+        "source_candidate_ids": [
+          3,
+          15,
+          17
+        ],
+        "source_sentence_indexes": [
+          2636,
+          2637,
+          2638
+        ],
+        "excerpt": "[Promoter(s) & Promoter(s) Group], and a Managing Director & CEO. During the year, there were no changes in the Directors of the Company, except for Mr. Ashish Choksi, who was appointed as a Non-Executive Director of the Company with effect from 1st April 2025. The Managing Director & CEO and Independent Directors of the Company are not liable to retire by rotation.",
+        "source_resolution_status": "resolved"
+      },
+      {
+        "category": "Business Activity",
+        "statement": "During the year, there was no change in the nature of the Company’s business.",
+        "source_candidate_ids": [
+          37,
+          38
+        ],
+        "source_sentence_indexes": [
+          2560,
+          2561
+        ],
+        "excerpt": "This mainly comprises of spends for capacity expansion for paint business, regular capital expenditure at various plant locations and other Company offices/warehouses, technological advancements, safety and ESG expenditure, backward integration projects, and general maintenance. Proposed paint plant in the state of Madhya Pradesh The Company had announced its proposal to set up a water-based paint manufacturing facility in the State of Madhya Pradesh with a proposed capacity of 4 lakh KL per annum and an estimated investment of ~` 2,000 crores.",
+        "source_resolution_status": "resolved"
+      }
+    ],
+    "unresolved_signals": [],
+    "unresolved_negative_evidence": []
+  },
+  "rate_limit_policy": {
+    "max_rpm": 5,
+    "provider_rpm_limit_assumed": 10,
+    "max_input_tokens_per_request": 200000,
+    "max_input_tokens_per_minute": 250000
+  }
+}
