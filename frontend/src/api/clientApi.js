@@ -1,4 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://worksphere-lead-generation.onrender.com/api";
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://worksphere-lead-generation.onrender.com/api"
+).replace(/\/+$/, "");
 
 async function apiRequest(endpoint, options = {}) {
   const response = await fetch(

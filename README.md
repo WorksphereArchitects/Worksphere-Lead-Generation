@@ -759,36 +759,33 @@ http://127.0.0.1:5000
 
 # 13. Frontend Setup
 
-The current milestone does not contain a completed frontend application or committed frontend framework configuration.
+The frontend is a Vite application in `frontend/`. Install dependencies and run the development server from that directory:
 
-Therefore, there are currently no frontend installation commands that can be documented without assuming a framework that has not yet been implemented.
-
-The planned frontend will communicate with the backend through the REST API:
-
-```text
-Frontend
-   ↓
-HTTP Requests
-   ↓
-Flask REST API
-   ↓
-SQLAlchemy
-   ↓
-PostgreSQL
+```powershell
+cd frontend
+npm install
+npm run dev
 ```
 
-Future frontend functionality is expected to include:
+## Production Deployment (Render + Vercel)
 
-- Source management
-- Document inspection
-- Evidence inspection
-- Evidence validation status
-- Evidence provenance
-- Signal monitoring
-- Company intelligence
-- Project intelligence
-- Decision-maker intelligence
-- Opportunity intelligence
+The Vite frontend reads `VITE_API_BASE_URL` at build time. In the Vercel project's environment variables, set it to the Render backend URL **including `/api`**, for example:
+
+```text
+VITE_API_BASE_URL=https://your-render-service.onrender.com/api
+```
+
+Redeploy the Vercel project after changing the variable. The frontend defaults to the current WorkSphere Render API URL, so set this variable when using a different Render service or custom backend domain.
+
+The backend restricts browser requests using `CORS_ORIGINS`. In the Render service's environment variables, set it to the exact Vercel site origin(s), with no path, separated by commas if needed:
+
+```text
+CORS_ORIGINS=https://your-vercel-project.vercel.app
+```
+
+Include any Vercel custom domain or preview origin that should be allowed. Keep the scheme (`https://`) and do not add a trailing slash. When `CORS_ORIGINS` is unset, the backend allows the current production Vercel domain and the two local development origins.
+
+After saving Render variables, restart/redeploy the backend. The frontend URL must point to the API's `/api` base; the backend CORS value must be the frontend's origin, not the backend URL.
 
 ---
 

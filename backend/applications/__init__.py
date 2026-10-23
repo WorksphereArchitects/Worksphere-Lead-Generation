@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask
 from flask_cors import CORS
 from applications.config import Config
@@ -12,15 +14,22 @@ from applications.routes.company_intelligence import company_intelligence
 
 def create_app():
     app = Flask(__name__)
-    
+
+    allowed_origins = [
+        origin.strip().rstrip("/")
+        for origin in os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173,"
+            "https://worksphere-lead-generation.vercel.app"
+        ).split(",")
+        if origin.strip()
+    ]
+
     CORS(
         app,
         resources={
             r"/api/*": {
-                "origins": [
-                    "http://localhost:5173",
-                    "http://127.0.0.1:5173"
-                ]
+                "origins": allowed_origins
             }
         }
     )
