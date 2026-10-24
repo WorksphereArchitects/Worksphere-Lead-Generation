@@ -99,10 +99,34 @@ export async function processAnnualReport(reportId) {
 }
 
 export async function ingestCompanyAnnualReport(companyId) {
-  return apiRequest(
+  const queued = await apiRequest(
     `/reports/companies/${encodeURIComponent(companyId)}/ingest`,
     { method: "POST" }
   );
+  if (!queued?.job_id) {
+    throw new Error("The annual report ingestion API did not return a job ID.");
+  }
+
+  const deadline = Date.now() + 180_000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => window.setTimeout(resolve, 2000));
+    const status = await apiRequest(
+      `/reports/companies/${encodeURIComponent(companyId)}/ingest-runs/${encodeURIComponent(queued.job_id)}`
+    );
+    const job = status?.job;
+
+    if (job?.status === "completed" && job.result) {
+      return job.result;
+    }
+    if (job?.status === "failed") {
+      throw new Error(job.failure_reason || "Annual report ingestion failed.");
+    }
+    if (job?.status !== "processing") {
+      throw new Error("The annual report ingestion job returned an unexpected status.");
+    }
+  }
+
+  throw new Error("Annual report ingestion is taking longer than expected. Check back shortly.");
 }
 
 

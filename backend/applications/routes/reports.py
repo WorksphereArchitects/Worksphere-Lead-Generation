@@ -7,8 +7,10 @@ from applications.services.gemini_engine import (
     process_annual_report,
 )
 from applications.services.annual_reports import ReportAlreadyProcessingError
-from applications.services.annual_report_ingestion import (
-    load_report_from_company,
+from applications.services.report_ingestion_jobs import (
+    ReportIngestionConflict,
+    get_company_report_ingestion,
+    queue_company_report_ingestion,
 )
 from applications.services.supabase_client import supabase
 
@@ -90,35 +92,56 @@ def ingest_company_report(company_id):
                 "error": "Company not found."
             }), 404
 
-        result = load_report_from_company(
-            symbol=company["symbol"],
-            company=company,
-        )
-
+        job = queue_company_report_ingestion(company)
         return jsonify({
             "success": True,
-            "message": "Annual report discovered and ingested.",
-            "company": {
-                "id": company["id"],
-                "symbol": company["symbol"],
-                "name": company["name"],
-            },
-            "report": {
-                "id": result["annual_report_id"],
-                "financial_year": result["financial_year"],
-                "report_title": result["file_name"],
-                "nse_url": result["nse_url"],
-                "page_count": result["page_count"],
-                "processing_status": result["processing_status"],
-            },
-        }), 200
+            "status": job["status"],
+            "job_id": job["id"],
+        }), 202
 
-    except Exception as error:
+    except ReportIngestionConflict:
+        return jsonify({
+            "success": False,
+            "error": "Annual report ingestion is already running for this company.",
+        }), 409
+    except Exception:
         logger.exception(
             "Annual report ingestion failed for company %s",
             company_id,
         )
         return jsonify({
             "success": False,
-            "error": "Annual report ingestion failed. Check backend configuration and logs.",
+            "error": "Could not queue annual report ingestion.",
         }), 500
+
+
+@reports.get("/companies/<string:company_id>/ingest-runs/<string:job_id>")
+def get_company_report_ingestion_status(company_id, job_id):
+    try:
+        UUID(company_id)
+        UUID(job_id)
+    except (TypeError, ValueError):
+        return jsonify({
+            "success": False,
+            "error": "Invalid company or ingestion job ID.",
+        }), 400
+
+    try:
+        job = get_company_report_ingestion(company_id, job_id)
+    except Exception:
+        logger.exception(
+            "Could not retrieve annual report ingestion job %s",
+            job_id,
+        )
+        return jsonify({
+            "success": False,
+            "error": "Could not retrieve annual report ingestion status.",
+        }), 500
+
+    if not job:
+        return jsonify({
+            "success": False,
+            "error": "Annual report ingestion job not found.",
+        }), 404
+
+    return jsonify({"success": True, "job": job}), 200

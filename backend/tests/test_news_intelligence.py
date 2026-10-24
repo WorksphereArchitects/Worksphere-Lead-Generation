@@ -543,7 +543,7 @@ class NewsApiTests(unittest.TestCase):
             patch.object(report_routes.supabase, "table", return_value=company_query),
             patch.object(
                 report_routes,
-                "load_report_from_company",
+                "queue_company_report_ingestion",
                 side_effect=RuntimeError("upstream unavailable"),
             ),
         ):
@@ -557,3 +557,55 @@ class NewsApiTests(unittest.TestCase):
             response.headers.get("Access-Control-Allow-Origin"),
             "https://worksphere-lead-generation.vercel.app",
         )
+
+    def test_report_ingestion_is_queued_without_blocking_request(self):
+        company_query = MagicMock()
+        company_query.select.return_value = company_query
+        company_query.eq.return_value = company_query
+        company_query.maybe_single.return_value = company_query
+        company_query.execute.return_value.data = {
+            **self.company,
+            "symbol": "EXAMPLE",
+        }
+        job = {"id": str(uuid4()), "status": "processing"}
+
+        with (
+            patch.object(report_routes.supabase, "table", return_value=company_query),
+            patch.object(
+                report_routes,
+                "queue_company_report_ingestion",
+                return_value=job,
+            ) as queue,
+        ):
+            response = self.client.post(
+                f"/api/reports/companies/{self.company['id']}/ingest"
+            )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json["job_id"], job["id"])
+        queue.assert_called_once_with({
+            **self.company,
+            "symbol": "EXAMPLE",
+        })
+
+    def test_report_ingestion_status_is_company_scoped(self):
+        job_id = str(uuid4())
+        job = {
+            "id": job_id,
+            "company_id": self.company["id"],
+            "status": "completed",
+            "result": {"id": str(uuid4())},
+        }
+
+        with patch.object(
+            report_routes,
+            "get_company_report_ingestion",
+            return_value=job,
+        ) as get_job:
+            response = self.client.get(
+                f"/api/reports/companies/{self.company['id']}/ingest-runs/{job_id}"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["job"], job)
+        get_job.assert_called_once_with(self.company["id"], job_id)
