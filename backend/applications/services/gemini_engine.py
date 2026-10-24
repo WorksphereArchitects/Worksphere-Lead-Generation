@@ -1481,6 +1481,7 @@ def process_annual_report(
     *,
     client=None,
     limiter: GeminiRateLimiter | None = None,
+    already_claimed: bool = False,
 ) -> dict[str, Any]:
     """
     Run the complete production annual-report intelligence pipeline.
@@ -1512,9 +1513,10 @@ def process_annual_report(
         report["company_id"]
     )
 
-    # The conditional update prevents concurrent requests in separate Flask
-    # workers from processing the same report at the same time.
-    claim_report_for_processing(report_id)
+    if not already_claimed:
+        # The conditional update prevents concurrent requests in separate Flask
+        # workers from processing the same report at the same time.
+        claim_report_for_processing(report_id)
     try:
         run = create_processing_run(
             company_id=company["id"],

@@ -90,11 +90,41 @@ export async function ingestCompanyNews(companyId, days = 30) {
 }
 
 export async function processAnnualReport(reportId) {
-  return apiRequest(
+  await apiRequest(
     `/reports/${encodeURIComponent(reportId)}/process`,
     {
       method: "POST",
     }
+  );
+
+  const deadline = Date.now() + 46 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => window.setTimeout(resolve, 3000));
+    const status = await getReportProcessingStatus(reportId);
+
+    if (status.status === "completed") {
+      return status;
+    }
+    if (status.status === "failed") {
+      throw new Error(
+        status.latest_run?.error_message || "Annual report processing failed."
+      );
+    }
+    if (status.status !== "processing") {
+      throw new Error(
+        `Unexpected annual report processing status: ${status.status || "unknown"}.`
+      );
+    }
+  }
+
+  throw new Error(
+    "Report processing is taking longer than expected. It may still be running; refresh the company details to check its status."
+  );
+}
+
+export async function getReportProcessingStatus(reportId) {
+  return apiRequest(
+    `/reports/${encodeURIComponent(reportId)}/status`
   );
 }
 
@@ -107,7 +137,7 @@ export async function ingestCompanyAnnualReport(companyId) {
     throw new Error("The annual report ingestion API did not return a job ID.");
   }
 
-  const deadline = Date.now() + 180_000;
+  const deadline = Date.now() + 30 * 60 * 1000;
   while (Date.now() < deadline) {
     await new Promise((resolve) => window.setTimeout(resolve, 2000));
     const status = await apiRequest(

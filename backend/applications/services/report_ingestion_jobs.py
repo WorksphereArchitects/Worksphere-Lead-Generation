@@ -90,6 +90,24 @@ def queue_company_report_ingestion(
             or "ux_report_ingestion_runs_one_processing_per_company"
             in str(error)
         ):
+            try:
+                existing = (
+                    supabase.table("report_ingestion_runs")
+                    .select("*")
+                    .eq("company_id", company["id"])
+                    .eq("status", "processing")
+                    .order("created_at", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+            except Exception:
+                logger.exception(
+                    "Could not find active report ingestion for company %s",
+                    company.get("id"),
+                )
+                raise ReportIngestionConflict from error
+            if existing.data:
+                return existing.data[0]
             raise ReportIngestionConflict from error
         raise
 

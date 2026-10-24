@@ -2,15 +2,14 @@ import logging
 
 from flask import Blueprint, jsonify
 from uuid import UUID
-from applications.services.gemini_engine import (
-    _safe_processing_error,
-    process_annual_report,
-)
-from applications.services.annual_reports import ReportAlreadyProcessingError
 from applications.services.report_ingestion_jobs import (
     ReportIngestionConflict,
     get_company_report_ingestion,
     queue_company_report_ingestion,
+)
+from applications.services.report_processing_jobs import (
+    get_report_processing_status,
+    queue_report_processing,
 )
 from applications.services.supabase_client import supabase
 
@@ -34,34 +33,52 @@ def process_report(report_id):
         }), 400
 
     try:
-        result = process_annual_report(report_id)
-
+        job = queue_report_processing(report_id)
         return jsonify({
             "success": True,
-            "report": result["report"],
-            "processing_run": result["processing_run"],
-            "signals": result["signals"],
-            "negative_evidence": result["negative_evidence"],
-            "unresolved_signals": result["unresolved_signals"],
-            "retrieval_stats": result["retrieval_stats"],
-            "model_metadata": result["model_metadata"],
-        }), 200
+            "status": job["status"],
+            "report_id": job["report_id"],
+        }), 202
 
     except Exception as error:
-        if isinstance(error, ReportAlreadyProcessingError):
-            return jsonify({
-                "success": False,
-                "error": "Annual report is already processing.",
-            }), 409
         if isinstance(error, LookupError):
             return jsonify({
                 "success": False,
                 "error": "Annual report not found.",
             }), 404
+        logger.exception("Could not queue report processing for %s", report_id)
         return jsonify({
             "success": False,
-            "error": _safe_processing_error(error),
+            "error": "Could not start annual report processing.",
         }), 500
+
+
+@reports.get("/<string:report_id>/status")
+def get_report_processing_status_route(report_id):
+    try:
+        UUID(report_id)
+    except (TypeError, ValueError):
+        return jsonify({
+            "success": False,
+            "error": "Invalid annual report ID. A report UUID is required.",
+        }), 400
+
+    try:
+        status = get_report_processing_status(report_id)
+    except Exception:
+        logger.exception("Could not retrieve processing status for %s", report_id)
+        return jsonify({
+            "success": False,
+            "error": "Could not retrieve annual report processing status.",
+        }), 500
+
+    if not status:
+        return jsonify({
+            "success": False,
+            "error": "Annual report not found.",
+        }), 404
+
+    return jsonify({"success": True, **status}), 200
 
 
 @reports.post("/companies/<string:company_id>/ingest")

@@ -6,6 +6,7 @@ import os
 import sys
 import types
 import unittest
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -20,6 +21,7 @@ from applications import create_app
 from applications.routes import company_intelligence as company_routes
 from applications.routes import reports as report_routes
 from applications.services import discovery, discovery_relevance, news_intelligence
+from applications.services import report_ingestion_jobs, report_processing_jobs
 
 
 class FakeQuery:
@@ -609,3 +611,132 @@ class NewsApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["job"], job)
         get_job.assert_called_once_with(self.company["id"], job_id)
+
+    def test_report_processing_returns_accepted_and_joins_existing_run(self):
+        report_id = str(uuid4())
+        with patch.object(
+            report_routes,
+            "queue_report_processing",
+            return_value={"status": "processing", "report_id": report_id},
+        ) as queue:
+            response = self.client.post(
+                f"/api/reports/{report_id}/process",
+                headers={"Origin": "https://worksphere-lead-generation.vercel.app"},
+            )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json["status"], "processing")
+        self.assertEqual(
+            response.headers.get("Access-Control-Allow-Origin"),
+            "https://worksphere-lead-generation.vercel.app",
+        )
+        queue.assert_called_once_with(report_id)
+
+    def test_report_processing_status_returns_persisted_run_state(self):
+        report_id = str(uuid4())
+        status = {
+            "report_id": report_id,
+            "status": "processing",
+            "latest_run": {"id": str(uuid4()), "status": "running"},
+        }
+        with patch.object(
+            report_routes,
+            "get_report_processing_status",
+            return_value=status,
+        ) as get_status:
+            response = self.client.get(
+                f"/api/reports/{report_id}/status"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["status"], "processing")
+        self.assertEqual(response.json["latest_run"]["status"], "running")
+        get_status.assert_called_once_with(report_id)
+
+    def test_duplicate_report_ingestion_joins_existing_job(self):
+        company = {**self.company, "symbol": "EXAMPLE"}
+        insert_query = MagicMock()
+        insert_query.insert.return_value.select.return_value.execute.side_effect = (
+            RuntimeError(
+                "duplicate key violates unique constraint "
+                "ux_report_ingestion_runs_one_processing_per_company"
+            )
+        )
+        active_job = {"id": str(uuid4()), "status": "processing"}
+        lookup_query = MagicMock()
+        lookup_query.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = [
+            active_job
+        ]
+        with patch.object(
+            report_ingestion_jobs.supabase,
+            "table",
+            side_effect=[insert_query, lookup_query],
+        ):
+            result = report_ingestion_jobs.queue_company_report_ingestion(company)
+
+        self.assertEqual(result, active_job)
+
+    def test_processing_request_joins_non_stale_active_run(self):
+        report_id = str(uuid4())
+        with (
+            patch.object(
+                report_processing_jobs,
+                "get_annual_report",
+                return_value={
+                    "id": report_id,
+                    "processing_status": "processing",
+                },
+            ),
+            patch.object(report_processing_jobs, "_latest_run", return_value={
+                "id": str(uuid4()),
+                "status": "running",
+                "started_at": "2099-01-01T00:00:00+00:00",
+            }),
+            patch.object(
+                report_processing_jobs,
+                "_REPORT_PROCESSING_EXECUTOR",
+            ) as executor,
+        ):
+            result = report_processing_jobs.queue_report_processing(report_id)
+
+        self.assertEqual(result, {"status": "processing", "report_id": report_id})
+        executor.submit.assert_not_called()
+
+    def test_stale_processing_lock_is_released_and_run_is_failed(self):
+        report_id = str(uuid4())
+        run_id = str(uuid4())
+        stale_time = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        query = MagicMock()
+        query.update.return_value.eq.return_value.eq.return_value.lt.return_value.select.return_value.execute.return_value.data = [
+            {"id": report_id}
+        ]
+        with (
+            patch.object(
+                report_processing_jobs.supabase,
+                "table",
+                return_value=query,
+            ),
+            patch.object(
+                report_processing_jobs,
+                "fail_processing_run",
+            ) as fail_run,
+        ):
+            recovered = report_processing_jobs._recover_stale_processing(
+                {
+                    "id": report_id,
+                    "processing_status": "processing",
+                    "updated_at": stale_time,
+                },
+                {
+                    "id": run_id,
+                    "status": "running",
+                    "started_at": stale_time,
+                },
+            )
+
+        self.assertTrue(recovered)
+        query.update.assert_called_once_with({"processing_status": "failed"})
+        fail_run.assert_called_once_with(
+            run_id,
+            "Processing stopped without completing. Retry the report.",
+        )

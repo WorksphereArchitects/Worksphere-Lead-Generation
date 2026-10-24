@@ -9,6 +9,7 @@ import {
   getCompanies,
   getCompanyIntelligence,
   getCompanyNews,
+  getReportProcessingStatus,
   ingestCompanyAnnualReport,
   ingestCompanyNews,
   processAnnualReport,
@@ -295,6 +296,75 @@ export default function Dashboard() {
       window.clearTimeout(timerId);
     };
   }, [detailsOpen, selectedCompany?.id, selectedCompany?.newsState]);
+
+  useEffect(() => {
+    const companyId = selectedCompany?.id;
+    const reportId = selectedCompany?.annualReport?.id;
+    if (
+      !detailsOpen
+      || !companyId
+      || !reportId
+      || selectedCompany?.annualReport?.processingStatus !== "processing"
+    ) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    let timerId;
+    const poll = async () => {
+      try {
+        const status = await getReportProcessingStatus(reportId);
+        if (cancelled) return;
+
+        if (status.status === "processing") {
+          setSelectedCompany((current) => (
+            current?.id === companyId
+              ? {
+                ...current,
+                annualReport: {
+                  ...current.annualReport,
+                  processingStatus: status.status,
+                  latestRun: status.latest_run,
+                },
+              }
+              : current
+          ));
+          timerId = window.setTimeout(poll, 5000);
+          return;
+        }
+
+        const latestData = await getCompanyIntelligence(companyId);
+        if (cancelled) return;
+        const refreshedCompany = mapCompanyIntelligence(latestData, null);
+        setSelectedCompany((current) => (
+          current?.id === companyId
+            ? {
+              ...refreshedCompany,
+              recentIntelligence: current.recentIntelligence,
+              newsState: current.newsState,
+              newsLatestRun: current.newsLatestRun,
+              newsError: current.newsError,
+            }
+            : current
+        ));
+      } catch (error) {
+        if (cancelled) return;
+        console.error("Failed to refresh annual report processing status:", error);
+        timerId = window.setTimeout(poll, 10000);
+      }
+    };
+
+    poll();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timerId);
+    };
+  }, [
+    detailsOpen,
+    selectedCompany?.id,
+    selectedCompany?.annualReport?.id,
+    selectedCompany?.annualReport?.processingStatus,
+  ]);
 
 
   /*

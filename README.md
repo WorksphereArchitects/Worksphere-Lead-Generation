@@ -787,7 +787,7 @@ Include any Vercel custom domain or preview origin that should be allowed. Keep 
 
 After saving Render variables, restart/redeploy the backend. The frontend URL must point to the API's `/api` base; the backend CORS value must be the frontend's origin, not the backend URL.
 
-Annual report ingestion runs in the background so NSE downloads and PDF extraction do not hold open a browser request. Apply `supabase/migrations/20261024000000_report_ingestion_jobs.sql` to the Supabase project before deploying the matching backend and frontend; the frontend polls the persisted ingestion job until it completes or fails.
+Annual report ingestion and intelligence processing run in background workers so NSE downloads, PDF extraction, and model calls do not hold open browser requests. Both workflows persist their status in Supabase, and the dashboard polls for completion or failure. Repeated requests join the active job/run instead of starting duplicate work. Processing workers refresh a database heartbeat every minute; runs without a heartbeat for 10 minutes are marked failed and can be retried. Apply `supabase/migrations/20261024000000_report_ingestion_jobs.sql` to the Supabase project before deploying the matching backend and frontend.
 
 ---
 
