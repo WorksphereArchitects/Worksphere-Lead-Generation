@@ -15,15 +15,23 @@ from applications.routes.company_intelligence import company_intelligence
 def create_app():
     app = Flask(__name__)
 
-    allowed_origins = [
+    production_origin = "https://worksphere-lead-generation.vercel.app"
+    configured_origins = [
         origin.strip().rstrip("/")
-        for origin in os.getenv(
-            "CORS_ORIGINS",
-            "http://localhost:5173,http://127.0.0.1:5173,"
-            "https://worksphere-lead-generation.vercel.app"
-        ).split(",")
+        for origin in os.getenv("CORS_ORIGINS", "").split(",")
         if origin.strip()
     ]
+    default_origins = (
+        ["http://localhost:5173", "http://127.0.0.1:5173"]
+        if not configured_origins
+        else []
+    )
+    allowed_origins = [
+        production_origin,
+        *default_origins,
+        *configured_origins,
+    ]
+    allowed_origins = list(dict.fromkeys(allowed_origins))
 
     CORS(
         app,

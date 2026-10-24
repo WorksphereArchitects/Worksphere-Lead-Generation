@@ -777,13 +777,13 @@ VITE_API_BASE_URL=https://your-render-service.onrender.com/api
 
 Redeploy the Vercel project after changing the variable. The frontend defaults to the current WorkSphere Render API URL, so set this variable when using a different Render service or custom backend domain.
 
-The backend restricts browser requests using `CORS_ORIGINS`. In the Render service's environment variables, set it to the exact Vercel site origin(s), with no path, separated by commas if needed:
+The backend restricts browser requests using `CORS_ORIGINS`. The production Vercel origin `https://worksphere-lead-generation.vercel.app` is always allowed. In the Render service's environment variables, list any additional site origins, with no path, separated by commas if needed:
 
 ```text
 CORS_ORIGINS=https://your-vercel-project.vercel.app
 ```
 
-Include any Vercel custom domain or preview origin that should be allowed. Keep the scheme (`https://`) and do not add a trailing slash. When `CORS_ORIGINS` is unset, the backend allows the current production Vercel domain and the two local development origins.
+Include any Vercel custom domain or preview origin that should be allowed. Keep the scheme (`https://`) and do not add a trailing slash. When `CORS_ORIGINS` is unset, the backend also allows the two local development origins.
 
 After saving Render variables, restart/redeploy the backend. The frontend URL must point to the API's `/api` base; the backend CORS value must be the frontend's origin, not the backend URL.
 

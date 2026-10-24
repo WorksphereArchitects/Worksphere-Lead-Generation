@@ -1,4 +1,4 @@
-import traceback
+import logging
 
 from flask import Blueprint, jsonify
 from uuid import UUID
@@ -11,6 +11,8 @@ from applications.services.annual_report_ingestion import (
     load_report_from_company,
 )
 from applications.services.supabase_client import supabase
+
+logger = logging.getLogger(__name__)
 
 reports = Blueprint(
     "reports",
@@ -112,11 +114,10 @@ def ingest_company_report(company_id):
         }), 200
 
     except Exception as error:
-        print(
-            f"Annual report ingestion failed "
-            f"({type(error).__name__}): {error}"
+        logger.exception(
+            "Annual report ingestion failed for company %s",
+            company_id,
         )
-        traceback.print_exc()
         return jsonify({
             "success": False,
             "error": "Annual report ingestion failed. Check backend configuration and logs.",

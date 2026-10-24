@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import types
 import unittest
@@ -17,6 +18,7 @@ sys.modules["applications.services.supabase_client"] = supabase_module
 
 from applications import create_app
 from applications.routes import company_intelligence as company_routes
+from applications.routes import reports as report_routes
 from applications.services import discovery, discovery_relevance, news_intelligence
 
 
@@ -487,3 +489,71 @@ class NewsApiTests(unittest.TestCase):
         self.assertEqual(response.json["run"]["id"], "run-1")
         enqueue.assert_called_once_with(self.company, lookback_days=7)
 
+    def test_production_origin_is_allowed_when_environment_omits_it(self):
+        with patch.dict(os.environ, {"CORS_ORIGINS": "https://other.example"}):
+            client = create_app().test_client()
+
+        response = client.options(
+            f"/api/reports/companies/{self.company['id']}/ingest",
+            headers={
+                "Origin": "https://worksphere-lead-generation.vercel.app",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers.get("Access-Control-Allow-Origin"),
+            "https://worksphere-lead-generation.vercel.app",
+        )
+
+    def test_news_errors_include_cors_headers(self):
+        with (
+            patch.object(company_routes, "_get_company_by_identifier", return_value=self.company),
+            patch.object(
+                company_routes,
+                "get_company_news",
+                side_effect=news_intelligence.NewsPersistenceFailure(
+                    "Stored company news is unavailable."
+                ),
+            ),
+        ):
+            response = self.client.get(
+                f"/api/company-intelligence/{self.company['id']}/news",
+                headers={"Origin": "https://worksphere-lead-generation.vercel.app"},
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(
+            response.headers.get("Access-Control-Allow-Origin"),
+            "https://worksphere-lead-generation.vercel.app",
+        )
+
+    def test_report_ingestion_errors_include_cors_headers(self):
+        company_query = MagicMock()
+        company_query.select.return_value = company_query
+        company_query.eq.return_value = company_query
+        company_query.maybe_single.return_value = company_query
+        company_query.execute.return_value.data = {
+            **self.company,
+            "symbol": "EXAMPLE",
+        }
+
+        with (
+            patch.object(report_routes.supabase, "table", return_value=company_query),
+            patch.object(
+                report_routes,
+                "load_report_from_company",
+                side_effect=RuntimeError("upstream unavailable"),
+            ),
+        ):
+            response = self.client.post(
+                f"/api/reports/companies/{self.company['id']}/ingest",
+                headers={"Origin": "https://worksphere-lead-generation.vercel.app"},
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(
+            response.headers.get("Access-Control-Allow-Origin"),
+            "https://worksphere-lead-generation.vercel.app",
+        )
