@@ -1,7 +1,10 @@
+
 from flask import Flask
 from flask_cors import CORS
+
 from applications.config import Config
 from applications.extentions import db, migrate
+
 from applications.routes.sources import sources
 from applications.routes.documents import documents
 from applications.routes.evidences import evidences
@@ -12,7 +15,9 @@ from applications.routes.company_intelligence import company_intelligence
 
 def create_app():
     app = Flask(__name__)
-    
+
+    app.config.from_object(Config)
+
     CORS(
         app,
         resources={
@@ -20,17 +25,28 @@ def create_app():
                 "origins": [
                     "http://localhost:5173",
                     "http://127.0.0.1:5173",
-                    "https://worksphere-lead-generation.vercel.app"
-                ]
+                    "https://worksphere-lead-generation.vercel.app",
+                ],
+                "methods": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "PATCH",
+                    "DELETE",
+                    "OPTIONS",
+                ],
+                "allow_headers": [
+                    "Content-Type",
+                    "Authorization",
+                ],
+                "max_age": 600,
             }
-        }
+        },
     )
-
-    app.config.from_object(Config)
 
     db.init_app(app)
     migrate.init_app(app, db)
-    
+
     app.register_blueprint(sources)
     app.register_blueprint(documents)
     app.register_blueprint(evidences)
