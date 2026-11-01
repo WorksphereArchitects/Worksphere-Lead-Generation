@@ -121,3 +121,34 @@ def ingest_company_report(company_id):
             "success": False,
             "error": "Annual report ingestion failed. Check backend configuration and logs.",
         }), 500
+
+import os
+import hmac
+
+from flask import request, jsonify
+
+from applications.services.nse_diagnostic import (
+    test_nse_connection,
+)
+
+
+@reports.get("/debug/nse")
+def debug_nse():
+    expected_token = os.getenv("NSE_DEBUG_TOKEN")
+    provided_token = request.headers.get("X-Debug-Token", "")
+
+    if not expected_token or not hmac.compare_digest(
+        provided_token,
+        expected_token,
+    ):
+        return jsonify({
+            "success": False,
+            "error": "Unauthorized",
+        }), 401
+
+    test_nse_connection()
+
+    return jsonify({
+        "success": True,
+        "message": "NSE diagnostic completed. Check Render logs.",
+    }), 200
