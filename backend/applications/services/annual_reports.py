@@ -331,6 +331,10 @@ def upsert_annual_report(
     google_drive_file_id: str | None = None,
     page_count: int | None = None,
     processing_status: str = "pending",
+    source_provider: str | None = None,
+    source_filing_id: str | None = None,
+    source_document_url: str | None = None,
+    source_company_isin: str | None = None,
 ) -> dict[str, Any]:
     """
     Insert or update an annual report.
@@ -351,6 +355,20 @@ def upsert_annual_report(
         "page_count": page_count,
         "processing_status": processing_status,
     }
+
+    # Only include source metadata when supplied. This prevents an older
+    # NSE-based caller from overwriting existing provider metadata with NULL.
+    source_metadata = {
+        "source_provider": source_provider,
+        "source_filing_id": source_filing_id,
+        "source_document_url": source_document_url,
+        "source_company_isin": source_company_isin,
+    }
+    payload.update({
+        key: value
+        for key, value in source_metadata.items()
+        if value is not None
+    })
 
     response = (
         supabase.table("annual_reports")
