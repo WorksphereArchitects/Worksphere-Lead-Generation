@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from datetime import date
+import os
 from pathlib import Path
 from typing import Any
+
+import requests
 
 from nse import NSE
 from pypdf import PdfReader
@@ -645,6 +649,360 @@ def fetch_latest_annual_report(
 
 
 # ============================================================
+# FINANCIALFILINGS ANNUAL REPORT DISCOVERY
+# ============================================================
+
+def fetch_annual_report_financialfilings(
+    company: dict[str, Any],
+    download_folder: Path | None = None,
+) -> dict[str, Any] | None:
+    """
+    Fetch the current financial year's annual report using FinancialFilings.
+
+    The company's ISIN must already be stored in the Supabase company record.
+
+    Financial year selection:
+        Uses date.today().year automatically. For example, in 2026 this
+        selects filings whose FinancialFilings `fiscal_year` is 2026
+        (FY 2025-26).
+
+    Credit usage:
+        One FinancialFilings API request is made to discover filing metadata.
+        The PDF is downloaded directly from the returned CDN URL, without
+        calling /filings/{id}/document/.
+
+    Returns a result compatible with the existing ingestion result shape,
+    with FinancialFilings provenance fields added. This function does not
+    change or replace the existing NSE functions.
+    """
+
+    if download_folder is None:
+        download_folder = DOWNLOAD_FOLDER
+
+    download_folder = Path(download_folder)
+    download_folder.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    symbol = str(
+        company.get("symbol", "")
+    ).strip()
+
+    if not symbol:
+        raise ValueError(
+            "Company is missing symbol."
+        )
+
+    isin = str(
+        company.get("isin", "")
+    ).strip().upper()
+
+    if not isin:
+        raise ValueError(
+            f"Company {symbol} is missing ISIN. "
+            "Populate companies.isin in Supabase first."
+        )
+
+    api_key = os.getenv("FR_API_KEY")
+
+    if not api_key:
+        raise RuntimeError(
+            "FR_API_KEY environment variable is missing."
+        )
+
+    # The API's fiscal_year is the ending year of the financial year.
+    # Example: fiscal_year=2026 represents FY 2025-26.
+    financial_year = str(date.today().year)
+
+    api_url = "https://api.financialreports.eu/filings/"
+
+    params = {
+        "company_isin": isin,
+        "primary_annual_report": "true",
+        "ordering": "-release_datetime",
+        "page_size": 100,
+        "view": "full",
+    }
+
+    print(
+        f"Searching FinancialFilings for {symbol} "
+        f"(ISIN: {isin}, FY: {financial_year})..."
+    )
+
+    response = requests.get(
+        api_url,
+        headers={
+            "X-API-Key": api_key,
+            "Accept": "application/json",
+        },
+        params=params,
+        timeout=60,
+    )
+
+    print(
+        "FinancialFilings metadata credits charged:",
+        response.headers.get(
+            "X-Credits-Charged",
+            "not supplied",
+        ),
+    )
+
+    response.raise_for_status()
+
+    payload = response.json()
+
+    if isinstance(payload, dict):
+        filings = payload.get(
+            "results",
+            [],
+        )
+    elif isinstance(payload, list):
+        filings = payload
+    else:
+        raise TypeError(
+            "Unexpected FinancialFilings response type: "
+            f"{type(payload).__name__}"
+        )
+
+    if not filings:
+        print(
+            f"No annual-report filings returned for {symbol}."
+        )
+        return None
+
+    # --------------------------------------------------------
+    # Select only the exact current financial year
+    # --------------------------------------------------------
+
+    matching_filings = [
+        filing
+        for filing in filings
+        if isinstance(filing, dict)
+        and str(
+            filing.get("fiscal_year", "")
+        ) == financial_year
+    ]
+
+    if not matching_filings:
+        available_years = sorted(
+            {
+                str(filing.get("fiscal_year"))
+                for filing in filings
+                if isinstance(filing, dict)
+                and filing.get("fiscal_year") is not None
+            }
+        )
+
+        print(
+            f"No annual report found for {symbol} "
+            f"for FY {financial_year}. "
+            f"Available fiscal years: {available_years or 'not provided'}"
+        )
+
+        return None
+
+    # Prefer the most recently released matching filing.
+    matching_filings.sort(
+        key=lambda filing: (
+            str(filing.get("release_datetime", "")),
+            str(filing.get("filing_date", "")),
+        ),
+        reverse=True,
+    )
+
+    selected_report = matching_filings[0]
+
+    # This ingestion path is specifically for original PDF reports.
+    file_extension = str(
+        selected_report.get("file_extension", "")
+    ).strip().upper()
+
+    if file_extension != "PDF":
+        raise ValueError(
+            f"FinancialFilings selected filing "
+            f"{selected_report.get('id')} with extension "
+            f"{file_extension or 'unknown'}, not PDF."
+        )
+
+    # API responses have used both `document_url` and `document`.
+    cdn_url = (
+        selected_report.get("document_url")
+        or selected_report.get("document")
+    )
+
+    if not cdn_url:
+        raise ValueError(
+            "Selected FinancialFilings record has no "
+            "document_url or document field."
+        )
+
+    if not str(cdn_url).startswith("https://"):
+        raise ValueError(
+            f"Unexpected FinancialFilings document URL: {cdn_url}"
+        )
+
+    filing_id = selected_report.get("id")
+
+    if not filing_id:
+        raise ValueError(
+            "Selected FinancialFilings record is missing its filing ID."
+        )
+
+    company_name = str(
+        company.get(
+            "company_name",
+            company.get("name", ""),
+        )
+    ).strip()
+
+    file_name = (
+        f"{symbol}_{isin}_FY{financial_year}_"
+        f"{filing_id}.pdf"
+    )
+
+    local_path = download_folder / file_name
+
+    # --------------------------------------------------------
+    # Local cache check
+    # --------------------------------------------------------
+
+    if local_path.exists():
+        with local_path.open("rb") as cached_file:
+            is_valid_pdf = cached_file.read(5) == b"%PDF-"
+
+        if is_valid_pdf:
+            print(
+                "Annual report already exists locally:"
+            )
+            print(
+                f"  {local_path}"
+            )
+
+            return {
+                "company_name": company_name,
+                "symbol": symbol,
+                "sector": company.get("sector", ""),
+                "target_for_worksphere": company.get(
+                    "target_for_worksphere",
+                    "",
+                ),
+                "classification_status": company.get(
+                    "classification_status",
+                    "",
+                ),
+                "report": selected_report,
+                "financial_year": financial_year,
+                "nse_url": None,
+                "file_name": file_name,
+                "file_path": local_path,
+                "downloaded": False,
+                "local_cache_hit": True,
+                "source_provider": "financialfilings",
+                "source_filing_id": str(filing_id),
+                "source_document_url": cdn_url,
+                "source_company_isin": isin,
+            }
+
+        # Remove an invalid/incomplete cached file before downloading again.
+        local_path.unlink()
+
+    # --------------------------------------------------------
+    # Download directly from the CDN
+    # --------------------------------------------------------
+
+    print(
+        f"Downloading FY {financial_year} annual report "
+        f"for {symbol} directly from FinancialFilings CDN..."
+    )
+
+    total_bytes = 0
+
+    with requests.get(
+        cdn_url,
+        headers={
+            "Accept": "application/pdf,application/octet-stream,*/*",
+        },
+        timeout=90,
+        stream=True,
+    ) as download_response:
+
+        download_response.raise_for_status()
+
+        with local_path.open("wb") as output_file:
+            for chunk in download_response.iter_content(
+                chunk_size=256 * 1024
+            ):
+                if chunk:
+                    output_file.write(chunk)
+                    total_bytes += len(chunk)
+
+    # --------------------------------------------------------
+    # Validate downloaded PDF
+    # --------------------------------------------------------
+
+    if total_bytes == 0:
+        local_path.unlink(missing_ok=True)
+        raise ValueError(
+            "FinancialFilings CDN returned an empty document."
+        )
+
+    with local_path.open("rb") as downloaded_file:
+        pdf_signature = downloaded_file.read(5)
+
+    if pdf_signature != b"%PDF-":
+        local_path.unlink(missing_ok=True)
+        raise ValueError(
+            "Downloaded FinancialFilings document is not a valid PDF. "
+            "The file does not start with the %PDF- signature."
+        )
+
+    print(
+        "Annual report downloaded successfully:"
+    )
+    print(
+        f"  Filing ID: {filing_id}"
+    )
+    print(
+        f"  Financial year: {financial_year}"
+    )
+    print(
+        f"  File: {local_path}"
+    )
+    print(
+        f"  Size: {total_bytes:,} bytes"
+    )
+
+    return {
+        "company_name": company_name,
+        "symbol": symbol,
+        "sector": company.get("sector", ""),
+        "target_for_worksphere": company.get(
+            "target_for_worksphere",
+            "",
+        ),
+        "classification_status": company.get(
+            "classification_status",
+            "",
+        ),
+        "report": selected_report,
+        "financial_year": financial_year,
+        # Kept for compatibility with result consumers that expect this key.
+        # FinancialFilings provenance is stored separately below.
+        "nse_url": None,
+        "file_name": file_name,
+        "file_path": local_path,
+        "downloaded": True,
+        "local_cache_hit": False,
+        "source_provider": "financialfilings",
+        "source_filing_id": str(filing_id),
+        "source_document_url": cdn_url,
+        "source_company_isin": isin,
+    }
+
+
+
+# ============================================================
 # PDF TEXT EXTRACTION
 # ============================================================
 
@@ -707,6 +1065,85 @@ def extract_report_text(
             reader.pages
         ),
     }
+
+
+# ============================================================
+# FINANCIALFILINGS INGESTION ORCHESTRATION
+# ============================================================
+
+def ingest_annual_report_financialfilings(
+    company: dict[str, Any],
+    drive_service=None,
+    download_folder: Path | None = None,
+) -> dict[str, Any] | None:
+    """
+    Run the annual-report ingestion pipeline using FinancialFilings:
+
+        Supabase company (including ISIN)
+              ↓
+        FinancialFilings metadata discovery
+              ↓
+        Direct CDN PDF download
+              ↓
+        PDF text extraction
+              ↓
+        optional Google Drive upload
+              ↓
+        annual_reports metadata in Supabase
+
+    This function deliberately does not call NSE. The existing NSE
+    discovery and ingestion functions remain available separately.
+    """
+
+    result = fetch_annual_report_financialfilings(
+        company=company,
+        download_folder=download_folder,
+    )
+
+    if result is None:
+        return None
+
+    file_path = Path(result["file_path"])
+
+    # Extract PDF text using the existing shared extraction function.
+    document = extract_report_text(file_path)
+    result["raw_text"] = document["raw_text"]
+    result["page_count"] = document["page_count"]
+
+    # Upload to Google Drive only when a service is explicitly supplied.
+    drive_file = None
+    if drive_service is not None:
+        drive_file = upload_report_to_drive(
+            drive_service,
+            file_path,
+        )
+
+    result["google_drive_file_id"] = (
+        drive_file.get("id") if drive_file else None
+    )
+    result["google_drive_file"] = drive_file
+
+    # Persist using the existing annual_reports schema. nse_url is NULL
+    # because the source is FinancialFilings, not NSE.
+    report_row = upsert_annual_report(
+        company_id=company["id"],
+        financial_year=str(result["financial_year"]),
+        report_title=result["file_name"],
+        nse_url=None,
+        local_file_path=str(file_path),
+        google_drive_file_id=result["google_drive_file_id"],
+        page_count=result["page_count"],
+        processing_status="pending",
+        source_provider="financialfilings",
+        source_filing_id=result["source_filing_id"],
+        source_document_url=result["source_document_url"],
+        source_company_isin=result["source_company_isin"],
+    )
+
+    result["annual_report_id"] = report_row["id"]
+    result["processing_status"] = report_row.get("processing_status")
+
+    return result
 
 
 # ============================================================
@@ -877,28 +1314,18 @@ def load_report_from_company(
     drive_service=None,
 ) -> dict[str, Any]:
     """
-    Load the latest annual report for a supplied company.
+    Load the current financial year's annual report for a Supabase company.
 
-    IMPORTANT:
-
-    The company record now comes from Supabase.
-
-    This function deliberately does NOT read the old
-    NSE companies CSV.
+    Production orchestration uses FinancialFilings and the company's ISIN.
+    The original NSE functions remain in this module for explicit fallback
+    or legacy use, but are no longer invoked by this default loader.
     """
 
     if not symbol:
-        raise ValueError(
-            "Company symbol is required."
-        )
+        raise ValueError("Company symbol is required.")
 
     if (
-        str(
-            company.get(
-                "symbol",
-                "",
-            )
-        ).upper()
+        str(company.get("symbol", "")).upper()
         != symbol.upper()
     ):
         raise ValueError(
@@ -911,20 +1338,16 @@ def load_report_from_company(
         exist_ok=True,
     )
 
-    with NSE(
-        download_folder=DOWNLOAD_FOLDER
-    ) as nse:
-
-        result = ingest_annual_report(
-            nse=nse,
-            company=company,
-            drive_service=drive_service,
-            download_folder=DOWNLOAD_FOLDER,
-        )
+    result = ingest_annual_report_financialfilings(
+        company=company,
+        drive_service=drive_service,
+        download_folder=DOWNLOAD_FOLDER,
+    )
 
     if not result:
         raise RuntimeError(
-            f"No annual report found for {symbol}."
+            f"No FinancialFilings annual report found for {symbol} "
+            f"for FY {date.today().year}."
         )
 
     return result
