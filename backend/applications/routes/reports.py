@@ -16,6 +16,7 @@ from applications.services.report_job_queue import (
     recover_stale_jobs,
 )
 from applications.services.report_ingestion_jobs import (
+    ReportIngestionDatabaseError,
     ReportIngestionConflict,
     get_company_report_ingestion,
     queue_company_report_ingestion,
@@ -317,6 +318,12 @@ def ingest_company_report(company_id):
             "error": "Annual report ingestion is already running for this company.",
         }), 409
 
+    except ReportIngestionDatabaseError:
+        return jsonify({
+            "success": False,
+            "error": "Annual report ingestion is temporarily unavailable.",
+        }), 503
+
     except Exception:
         logger.exception(
             "Annual report ingestion failed for company %s",
@@ -338,7 +345,13 @@ def annual_report_ingestion_status(company_id, job_id):
         UUID(company_id)
     except (TypeError, ValueError):
         return jsonify({"success": False, "error": "Invalid company ID."}), 400
-    job = get_company_report_ingestion(company_id, job_id)
+    try:
+        job = get_company_report_ingestion(company_id, job_id)
+    except ReportIngestionDatabaseError:
+        return jsonify({
+            "success": False,
+            "error": "Annual report ingestion status is temporarily unavailable.",
+        }), 503
     if not job:
         return jsonify({"success": False, "error": "Ingestion job not found."}), 404
     return jsonify({"success": True, "job": job}), 200

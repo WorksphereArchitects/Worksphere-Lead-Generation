@@ -22,14 +22,32 @@ class ReportIngestionConflict(Exception):
     """Raised when a company already has an active report ingestion."""
 
 
+class ReportIngestionDatabaseError(RuntimeError):
+    """Raised when the ingestion job store is unavailable or incomplete."""
+
+
+def _database_error(operation: str, error: Exception) -> ReportIngestionDatabaseError:
+    logger.exception(
+        "Annual report ingestion database operation failed: %s (code=%s)",
+        operation,
+        getattr(error, "code", None) or "unknown",
+    )
+    return ReportIngestionDatabaseError(
+        "Annual report ingestion job storage is unavailable."
+    )
+
+
 def _update_job(job_id: str, values: dict[str, Any]) -> None:
     payload = {
         **values,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-    supabase.table("report_ingestion_runs").update(payload).eq(
-        "id", job_id
-    ).execute()
+    try:
+        supabase.table("report_ingestion_runs").update(payload).eq(
+            "id", job_id
+        ).execute()
+    except Exception as error:
+        raise _database_error("update ingestion job", error) from error
 
 
 def _run_report_ingestion(job: dict[str, Any], company: dict[str, Any]) -> None:
@@ -85,10 +103,14 @@ def queue_company_report_ingestion(
             .execute()
         )
     except Exception as error:
+        error_code = getattr(error, "code", None)
+        error_message = str(error)
+        if error_code == "PGRST205" or "schema cache" in error_message.lower():
+            raise _database_error("create ingestion job", error) from error
         if (
-            getattr(error, "code", None) == "23505"
+            error_code == "23505"
             or "ux_report_ingestion_runs_one_processing_per_company"
-            in str(error)
+            in error_message
         ):
             try:
                 existing = (
@@ -100,16 +122,15 @@ def queue_company_report_ingestion(
                     .limit(1)
                     .execute()
                 )
-            except Exception:
-                logger.exception(
-                    "Could not find active report ingestion for company %s",
-                    company.get("id"),
-                )
-                raise ReportIngestionConflict from error
+            except Exception as lookup_error:
+                raise _database_error(
+                    "find active ingestion job",
+                    lookup_error,
+                ) from lookup_error
             if existing.data:
                 return existing.data[0]
             raise ReportIngestionConflict from error
-        raise
+        raise _database_error("create ingestion job", error) from error
 
     if not response.data:
         raise RuntimeError("Could not create annual report ingestion job.")
@@ -122,10 +143,16 @@ def queue_company_report_ingestion(
             "Could not start annual report ingestion for company %s",
             company.get("id"),
         )
-        _update_job(job["id"], {
-            "status": "failed",
-            "failure_reason": "Could not start annual report ingestion.",
-        })
+        try:
+            _update_job(job["id"], {
+                "status": "failed",
+                "failure_reason": "Could not start annual report ingestion.",
+            })
+        except ReportIngestionDatabaseError:
+            logger.exception(
+                "Could not persist failed ingestion job %s",
+                job.get("id"),
+            )
         raise RuntimeError(
             "Could not start annual report ingestion."
         ) from error
@@ -136,12 +163,15 @@ def get_company_report_ingestion(
     company_id: str,
     job_id: str,
 ) -> dict[str, Any] | None:
-    response = (
-        supabase.table("report_ingestion_runs")
-        .select("id,company_id,status,report_id,result,failure_reason,created_at,updated_at")
-        .eq("company_id", company_id)
-        .eq("id", job_id)
-        .maybe_single()
-        .execute()
-    )
+    try:
+        response = (
+            supabase.table("report_ingestion_runs")
+            .select("id,company_id,status,report_id,result,failure_reason,created_at,updated_at")
+            .eq("company_id", company_id)
+            .eq("id", job_id)
+            .maybe_single()
+            .execute()
+        )
+    except Exception as error:
+        raise _database_error("read ingestion job", error) from error
     return response.data if response else None
