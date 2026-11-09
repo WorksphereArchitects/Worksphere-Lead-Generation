@@ -1,5 +1,5 @@
 # WorkSphere Market Intelligence & Opportunity Signal Engine
-
+test-change
 WorkSphere Market Intelligence & Opportunity Signal Engine is a market-intelligence system designed to identify business events and market signals that may create future architectural, workplace, industrial, infrastructure, or related project opportunities.
 
 The central idea is:
