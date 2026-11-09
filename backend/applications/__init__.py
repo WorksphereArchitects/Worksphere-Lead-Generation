@@ -26,8 +26,10 @@ def create_app():
                 "http://localhost:5173",
                 "http://127.0.0.1:5173",
                 "https://worksphere-lead-generation.vercel.app",
+                "https://worksphere-lead-generation-git-main-business-development5.vercel.app",
+                "https://worksphere-lead-generation-coiuln25a-business-development5.vercel.app"
             ],
-            "methods": [
+            "methods": [    
                 "GET",
                 "POST",
                 "PUT",
