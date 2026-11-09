@@ -2,7 +2,9 @@ from flask import Blueprint, jsonify, request
 from uuid import UUID
 from applications.services.public_errors import safe_error_summary
 from applications.services.supabase_client import supabase
+import logging
 
+logger = logging.getLogger(__name__)
 
 companies = Blueprint(
     "companies",
@@ -371,10 +373,13 @@ def get_companies():
 
     except Exception as error:
 
-        print(f"Failed to fetch companies ({type(error).__name__}).")
+        logger.exception(
+            "Failed to fetch companies from Supabase"
+        )
 
         return jsonify({
             "error": "Failed to fetch companies",
+            "details": str(error),
         }), 500
 
 

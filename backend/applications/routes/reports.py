@@ -11,6 +11,9 @@ from applications.services.annual_report_ingestion import (
     load_report_from_company,
 )
 from applications.services.supabase_client import supabase
+import logging
+
+logger = logging.getLogger(__name__)
 
 reports = Blueprint(
     "reports",
