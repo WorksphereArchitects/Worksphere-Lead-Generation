@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 import {
   Newspaper,
   ExternalLink,
@@ -71,10 +73,67 @@ export default function RecentIntelligence({
   const completedWithErrors =
     newsState === "completed_with_errors";
 
+  const showFailureState =
+    news.length === 0 &&
+    !isFetching &&
+    Boolean(hasNewsError || ingestionFailed);
+
   const showEmptyState =
     news.length === 0 &&
     !isFetching &&
-    !hasNewsError;
+    !hasNewsError &&
+    !ingestionFailed &&
+    !completedWithErrors;
+
+  // Log the underlying failure details once per distinct failure so they
+  // are available in DevTools without flooding the console on re-renders.
+  const loggedFailureRef = useRef("");
+
+  useEffect(() => {
+    if (!hasNewsError && !ingestionFailed) {
+      loggedFailureRef.current = "";
+      return;
+    }
+
+    const latestRun = company?.newsLatestRun || company?.latestRun || null;
+    const errorDetails =
+      hasNewsError ||
+      latestRun?.error ||
+      latestRun?.error_message ||
+      latestRun?.failure_reason ||
+      latestRun?.message ||
+      "The API reported state='failed' but did not provide an error message.";
+
+    const failureKey = JSON.stringify({
+      companyId: company?.id,
+      newsState,
+      errorDetails,
+      latestRun,
+    });
+
+    if (loggedFailureRef.current === failureKey) return;
+    loggedFailureRef.current = failureKey;
+
+    console.groupCollapsed(
+      `[News ingestion] Failed for company ${company?.id || "unknown"}`
+    );
+    console.error("News ingestion error:", errorDetails);
+    console.error("News state:", newsState);
+    console.error("Latest ingestion run:", latestRun);
+    console.error("Company news error field:", company?.newsError);
+    console.error("Fetch action error:", actionError);
+    console.groupEnd();
+  }, [
+    actionError,
+    company,
+    company?.id,
+    company?.newsError,
+    company?.newsLatestRun,
+    company?.latestRun,
+    hasNewsError,
+    ingestionFailed,
+    newsState,
+  ]);
 
   const handleFetchNews = () => {
     if (!isFetching && onFetchNews) {
@@ -139,27 +198,32 @@ export default function RecentIntelligence({
         )}
       </div>
 
-      {/* Error state */}
-      {hasNewsError && (
+      {/* Single failure state: do not also render the empty state. */}
+      {showFailureState && (
         <div
           role="alert"
-          className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
+          className="mt-5 rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-center"
         >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span>{hasNewsError}</span>
+          <h4 className="text-sm font-semibold text-destructive">
+            News ingestion failed
+          </h4>
 
-            {onFetchNews && !isFetching && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="shrink-0 gap-2"
-                onClick={handleFetchNews}
-              >
-                <RefreshCw className="h-4 w-4" />
-                Try again
-              </Button>
-            )}
-          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {typeof hasNewsError === "string"
+              ? hasNewsError
+              : "We couldn't retrieve news for this company. Check the browser console for debugging details."}
+          </p>
+
+          {onFetchNews && (
+            <Button
+              className="mt-5 gap-2"
+              variant="outline"
+              onClick={handleFetchNews}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry fetching news
+            </Button>
+          )}
         </div>
       )}
 
@@ -228,29 +292,6 @@ export default function RecentIntelligence({
         </div>
       )}
 
-      {/* Failed ingestion without articles */}
-      {news.length === 0 && !isFetching && ingestionFailed && !hasNewsError && (
-        <div className="mt-5 rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-center">
-          <h4 className="text-sm font-semibold">
-            News ingestion failed
-          </h4>
-
-          <p className="mt-2 text-sm text-muted-foreground">
-            We couldn't retrieve news for this company. You can try again.
-          </p>
-
-          {onFetchNews && (
-            <Button
-              className="mt-5 gap-2"
-              variant="outline"
-              onClick={handleFetchNews}
-            >
-              <RefreshCw className="h-4 w-4" />
-              Retry fetching news
-            </Button>
-          )}
-        </div>
-      )}
 
       {/* Completed with errors */}
       {completedWithErrors && news.length === 0 && !hasNewsError && (
