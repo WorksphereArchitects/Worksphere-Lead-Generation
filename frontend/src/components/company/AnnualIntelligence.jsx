@@ -27,11 +27,17 @@ export default function AnnualIntelligence({
   const report = company.annualReport;
   const evidence = company.annualEvidence || [];
   const latestRun = report?.latestRun;
-  const status = latestRun?.status === "failed"
-    ? "failed"
-    : latestRun?.status === "running"
-      ? "processing"
-      : report?.processingStatus;
+  const status = report?.processingStatusLoading
+    ? "loading"
+    : report?.processingStatusError
+      ? "unavailable"
+      : report?.processingStatus || (
+        latestRun?.status === "failed"
+          ? "failed"
+          : latestRun?.status === "running"
+            ? "processing"
+            : "queued"
+      );
   const job = report?.job;
   const unresolvedCount = evidence.filter(
     (item) => item.source_resolution_status === "unresolved"
@@ -75,17 +81,21 @@ export default function AnnualIntelligence({
       ) : (
         <div className="mt-3 rounded-lg border p-4">
           <p className="text-sm font-medium">
-            {status === "failed"
+            {status === "loading"
+              ? "Checking annual report processing status…"
+              : status === "failed"
               ? "The most recent processing attempt failed."
-              : status === "processing"
-                ? "Annual report processing is in progress."
+              : status === "queued"
+                ? "Report is queued and waiting for a processing worker."
+                : status === "processing"
+                  ? "Annual report is being processed."
                 : status === "completed" && evidence.length === 0
                   ? "Processing completed; no evidence was found."
                   : status === "completed"
                     ? "Annual report processing completed."
-                    : status === "pending"
-                      ? "The report is available but has not been processed."
-                      : "Report processing status is unavailable."}
+                    : status === "unavailable"
+                      ? report?.processingStatusError || "Report processing status is unavailable."
+                      : "The report is available but has not been processed."}
           </p>
           {status === "failed" && (latestRun?.error_message || report?.processingError || job?.last_error) && (
             <p className="mt-2 text-sm text-destructive">

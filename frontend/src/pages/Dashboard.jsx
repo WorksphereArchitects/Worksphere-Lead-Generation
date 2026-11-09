@@ -16,6 +16,10 @@ import {
   processAnnualReport,
   updateCompanySalesStage,
 } from "../api/clientApi";
+import {
+  getAnnualReportStatus,
+  isAnnualReportActive,
+} from "../api/annualReportStatus";
 
 /*
  * Convert a company from the companies API into the
@@ -100,6 +104,9 @@ function mapCompanyIntelligence(data, newsData) {
         pageCount: latestReport.page_count,
         processingStatus:
           latestReport.processing_status,
+        processingStatusLoading: true,
+        processingStatusError: null,
+        job: latestReport.job || null,
         nseUrl: latestReport.nse_url,
         storagePath: latestReport.document_storage_path,
           latestRun,
@@ -176,9 +183,6 @@ export default function Dashboard() {
    */
   const [selectedCompany, setSelectedCompany] =
     useState(null);
-  const selectedCompanyRef = useRef(null);
-  selectedCompanyRef.current = selectedCompany;
-
   const [detailsOpen, setDetailsOpen] =
     useState(false);
 
@@ -302,40 +306,66 @@ export default function Dashboard() {
   }, [detailsOpen, selectedCompany?.id, selectedCompany?.newsState]);
 
   useEffect(() => {
+    const companyId = selectedCompany?.id;
     const reportId = selectedCompany?.annualReport?.id;
-    if (!detailsOpen || !reportId) return undefined;
+    if (!detailsOpen || !companyId || !reportId) return undefined;
 
     let cancelled = false;
     let timerId;
+    let inFlight = false;
+    let failedAttempts = 0;
+
+    const schedule = (delay) => {
+      if (!cancelled) timerId = window.setTimeout(poll, delay);
+    };
+
     const poll = async () => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
       try {
         const statusData = await getAnnualReportProcessingStatus(reportId);
         if (cancelled) return;
-        const nextStatus = statusData.status || statusData.report_status;
+        const normalized = getAnnualReportStatus(statusData);
+        failedAttempts = 0;
         setSelectedCompany((current) => (
-          current?.annualReport?.id === reportId
+          current?.annualReport?.id === reportId && current.id === companyId
             ? {
               ...current,
               annualReport: {
                 ...current.annualReport,
-                processingStatus: nextStatus,
-                job: statusData.job || current.annualReport.job,
-                processingError: statusData.error || null,
+                processingStatus: normalized.state,
+                processingStatusLoading: false,
+                processingStatusError: null,
+                job: normalized.job || current.annualReport.job || null,
+                processingError: normalized.error,
               },
             }
             : current
         ));
-        if (nextStatus === "completed") {
-          await loadCompanyDetails(selectedCompanyRef.current);
-          return;
-        }
-        if (nextStatus === "queued" || nextStatus === "processing") {
-          timerId = window.setTimeout(poll, 5000);
+        setReportActionError(null);
+        if (isAnnualReportActive(normalized.state)) {
+          schedule(5000);
         }
       } catch (error) {
         if (cancelled) return;
-        setReportActionError(error.message || "Could not refresh report status.");
-        timerId = window.setTimeout(poll, 10000);
+        failedAttempts += 1;
+        setSelectedCompany((current) => (
+          current?.annualReport?.id === reportId && current.id === companyId
+            ? {
+              ...current,
+              annualReport: {
+                ...current.annualReport,
+                processingStatusLoading: failedAttempts < 3,
+                processingStatusError: failedAttempts >= 3
+                  ? error.message || "Could not refresh report status."
+                  : null,
+              },
+            }
+            : current
+        ));
+        schedule(Math.min(1000 * (2 ** Math.min(failedAttempts - 1, 3)), 10000));
+      } finally {
+        inFlight = false;
       }
     };
     timerId = window.setTimeout(poll, 500);
@@ -343,7 +373,7 @@ export default function Dashboard() {
       cancelled = true;
       window.clearTimeout(timerId);
     };
-  }, [detailsOpen, selectedCompany?.annualReport?.id]);
+  }, [detailsOpen, selectedCompany?.id, selectedCompany?.annualReport?.id]);
 
 
   /*
