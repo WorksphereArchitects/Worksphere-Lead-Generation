@@ -32,6 +32,7 @@ export default function AnnualIntelligence({
     : latestRun?.status === "running"
       ? "processing"
       : report?.processingStatus;
+  const job = report?.job;
   const unresolvedCount = evidence.filter(
     (item) => item.source_resolution_status === "unresolved"
   ).length;
@@ -86,23 +87,28 @@ export default function AnnualIntelligence({
                       ? "The report is available but has not been processed."
                       : "Report processing status is unavailable."}
           </p>
-          {status === "failed" && latestRun?.error_message && (
-            <p className="mt-2 text-sm text-destructive">{latestRun.error_message}</p>
+          {status === "failed" && (latestRun?.error_message || report?.processingError || job?.last_error) && (
+            <p className="mt-2 text-sm text-destructive">
+              {latestRun?.error_message || report?.processingError || job?.last_error}
+            </p>
+          )}
+          {(status === "queued" || status === "processing") && job && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Attempt {job.attempts || 0} of {job.max_attempts || 3}; status refreshes automatically.
+            </p>
           )}
           {unresolvedCount > 0 && status !== "failed" && (
             <p className="mt-2 text-sm text-muted-foreground">
               {unresolvedCount} evidence item{unresolvedCount === 1 ? " has" : "s have"} an unresolved source.
             </p>
           )}
-          {status !== "processing" && onProcess && (
+          {status !== "processing" && status !== "queued" && status !== "completed" && onProcess && (
             <Button className="mt-3" size="sm" onClick={() => onProcess(company)} disabled={actionLoading}>
               {actionLoading
                 ? "Processing…"
                 : status === "failed"
                   ? "Retry processing"
-                  : status === "completed"
-                    ? "Reprocess report"
-                    : "Process report"}
+                  : "Process report"}
             </Button>
           )}
         </div>

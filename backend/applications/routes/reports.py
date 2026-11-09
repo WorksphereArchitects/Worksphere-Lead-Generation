@@ -1,25 +1,30 @@
 
 import logging
-import traceback
 import os
 import hmac
 from uuid import UUID
 
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request
 from applications.services.annual_reports import (
     get_annual_report,
-    ReportAlreadyProcessingError,
-)
-from applications.services.annual_report_ingestion import (
-    load_report_from_company,
 )
 from applications.services.supabase_client import supabase
+from applications.services.report_job_queue import (
+    enqueue_report_job,
+    get_latest_job_for_report,
+    mark_dispatch_failed,
+    recover_stale_jobs,
+)
+from applications.services.report_ingestion_jobs import (
+    ReportIngestionConflict,
+    get_company_report_ingestion,
+    queue_company_report_ingestion,
+)
 from applications.services.nse_diagnostic import test_nse_connection
 import json
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
-from applications.services.annual_reports import get_annual_report
 
 
 logger = logging.getLogger(__name__)
@@ -31,7 +36,7 @@ reports = Blueprint(
 )
 
 
-def trigger_github_workflow(report_id):
+def trigger_github_workflow(job_id, report_id):
     """
     Trigger the annual report processing GitHub Actions workflow.
     """
@@ -67,6 +72,7 @@ def trigger_github_workflow(report_id):
     payload = {
         "ref": branch,
         "inputs": {
+            "job_id": job_id,
             "report_id": report_id,
         },
     }
@@ -115,46 +121,6 @@ def trigger_github_workflow(report_id):
         ) from error
 
 
-def _process_report_background(app, report_id):
-    """
-    Runs annual report processing outside the HTTP request.
-
-    Only one report can be processed at a time.
-    """
-
-    global active_report_id
-
-    try:
-        with app.app_context():
-            logger.info(
-                "Starting annual report processing: %s",
-                report_id,
-            )
-
-            process_annual_report(report_id)
-
-            logger.info(
-                "Annual report processing completed: %s",
-                report_id,
-            )
-
-    except Exception:
-        logger.exception(
-            "Annual report processing failed: %s",
-            report_id,
-        )
-
-    finally:
-        with processing_lock:
-            if active_report_id == report_id:
-                active_report_id = None
-
-        logger.info(
-            "Processing slot released for report: %s",
-            report_id,
-        )
-
-
 # --------------------------------------------------
 # PROCESS ANNUAL REPORT
 # --------------------------------------------------
@@ -172,6 +138,7 @@ def process_report(report_id):
         }), 400
 
     try:
+        recover_stale_jobs()
         report = get_annual_report(report_id)
 
         if not report:
@@ -180,14 +147,33 @@ def process_report(report_id):
                 "error": "Annual report not found.",
             }), 404
 
-        if report.get("processing_status") == "processing":
+        retry = bool((request.get_json(silent=True) or {}).get("retry", False))
+        existing_job = get_latest_job_for_report(report_id)
+        job = enqueue_report_job(report, retry=retry)
+
+        if job.get("status") == "failed" and not retry:
             return jsonify({
                 "success": False,
-                "error": "Annual report is already processing.",
+                "error": job.get("last_error") or "The previous processing attempt failed. Retry explicitly.",
+                "job_id": job["id"],
+                "status": "failed",
             }), 409
 
-        # GitHub now handles the actual processing.
-        trigger_github_workflow(report_id)
+        if existing_job and existing_job.get("id") == job.get("id") and job.get("status") in {"queued", "processing", "completed"}:
+            return jsonify({
+                "success": True,
+                "message": "Annual report processing job already exists.",
+                "report_id": report_id,
+                "job_id": job["id"],
+                "status": job["status"],
+                "idempotent": True,
+            }), 202
+
+        try:
+            trigger_github_workflow(job["id"], report_id)
+        except Exception as dispatch_error:
+            mark_dispatch_failed(job["id"], str(dispatch_error))
+            raise
 
         logger.info(
             "GitHub processing workflow triggered for report %s",
@@ -198,19 +184,27 @@ def process_report(report_id):
             "success": True,
             "message": "Annual report queued successfully.",
             "report_id": report_id,
+            "job_id": job["id"],
             "status": "queued",
         }), 202
 
-    except Exception:
+    except Exception as error:
         logger.exception(
             "Could not trigger report processing: %s",
             report_id,
         )
 
+        message = str(error).lower()
+        status_code = 409 if any(value in message for value in (
+            "already_completed", "retry_limit", "already processing"
+        )) else 502
         return jsonify({
             "success": False,
-            "error": "Could not start annual report processing.",
-        }), 502
+            "error": (
+                "This report is already completed or its retry limit was reached."
+                if status_code == 409 else "Could not start annual report processing."
+            ),
+        }), status_code
 
 
 
@@ -231,6 +225,7 @@ def report_processing_status(report_id):
         }), 400
 
     try:
+        recover_stale_jobs()
         report = get_annual_report(report_id)
 
         if not report:
@@ -239,9 +234,8 @@ def report_processing_status(report_id):
                 "error": "Annual report not found.",
             }), 404
 
-        report_status = (
-            report.get("processing_status") or "pending"
-        )
+        report_status = report.get("processing_status") or "pending"
+        job = get_latest_job_for_report(report_id)
 
         # The GitHub runner may be waiting to start.
         status = (
@@ -255,6 +249,8 @@ def report_processing_status(report_id):
             "report_id": report_id,
             "status": status,
             "report_status": report_status,
+            "job": job,
+            "error": job.get("last_error") if job else None,
         }), 200
 
     except Exception:
@@ -303,28 +299,23 @@ def ingest_company_report(company_id):
                 "error": "Company not found.",
             }), 404
 
-        result = load_report_from_company(
-            symbol=company["symbol"],
-            company=company,
-        )
-
+        job = queue_company_report_ingestion(company)
         return jsonify({
             "success": True,
-            "message": "Annual report discovered and ingested.",
+            "message": "Annual report ingestion queued.",
+            "job": job,
             "company": {
                 "id": company["id"],
                 "symbol": company["symbol"],
                 "name": company["name"],
             },
-            "report": {
-                "id": result["annual_report_id"],
-                "financial_year": result["financial_year"],
-                "report_title": result["file_name"],
-                "nse_url": result["nse_url"],
-                "page_count": result["page_count"],
-                "processing_status": result["processing_status"],
-            },
         }), 200
+
+    except ReportIngestionConflict:
+        return jsonify({
+            "success": False,
+            "error": "Annual report ingestion is already running for this company.",
+        }), 409
 
     except Exception:
         logger.exception(
@@ -339,6 +330,18 @@ def ingest_company_report(company_id):
                 "Check backend configuration and logs."
             ),
         }), 500
+
+
+@reports.get("/companies/<string:company_id>/ingest/<string:job_id>")
+def annual_report_ingestion_status(company_id, job_id):
+    try:
+        UUID(company_id)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Invalid company ID."}), 400
+    job = get_company_report_ingestion(company_id, job_id)
+    if not job:
+        return jsonify({"success": False, "error": "Ingestion job not found."}), 404
+    return jsonify({"success": True, "job": job}), 200
 
 
 # --------------------------------------------------

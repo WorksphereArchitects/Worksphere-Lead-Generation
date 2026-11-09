@@ -93,6 +93,12 @@
     );
   }
 
+  export async function getAnnualReportIngestionStatus(companyId, jobId) {
+    return apiRequest(
+      `/reports/companies/${encodeURIComponent(companyId)}/ingest/${encodeURIComponent(jobId)}`
+    );
+  }
+
 
   // --------------------------------------------------
   // Existing backend endpoints
@@ -169,22 +175,18 @@
 
 
 
-const REPORT_POLL_INTERVAL = 5000;
-const REPORT_MAX_WAIT = 30 * 60 * 1000;
-
 export async function getAnnualReportProcessingStatus(reportId) {
   return apiRequest(
     `/reports/${encodeURIComponent(reportId)}/status`
   );
 }
 
-export async function processAnnualReport(reportId) {
-
-  // Submit the job to Flask, which triggers GitHub Actions.
+export async function processAnnualReport(reportId, { retry = false } = {}) {
   const queued = await apiRequest(
     `/reports/${encodeURIComponent(reportId)}/process`,
     {
       method: "POST",
+      body: JSON.stringify({ retry }),
     }
   );
 
@@ -194,44 +196,6 @@ export async function processAnnualReport(reportId) {
     );
   }
 
-  const startedAt = Date.now();
-
-  // Wait for GitHub Actions to finish processing.
-  while (Date.now() - startedAt < REPORT_MAX_WAIT) {
-
-    await new Promise(resolve =>
-      setTimeout(resolve, REPORT_POLL_INTERVAL)
-    );
-
-    const result =
-      await getAnnualReportProcessingStatus(reportId);
-
-    const status = result.status;
-
-    if (status === "completed") {
-      return {
-        success: true,
-        report_id: reportId,
-        status: "completed",
-      };
-    }
-
-    if (status === "failed") {
-      throw new Error(
-        "Annual report processing failed. Check GitHub Actions logs."
-      );
-    }
-
-    if (!["queued", "processing"].includes(status)) {
-      throw new Error(
-        `Unexpected processing status: ${status}`
-      );
-    }
-  }
-
-  throw new Error(
-    "Processing is taking longer than expected. " +
-    "Check the GitHub Actions workflow."
-  );
+  return queued;
 }
 

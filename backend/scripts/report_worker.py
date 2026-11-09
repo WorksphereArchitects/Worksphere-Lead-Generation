@@ -3,12 +3,14 @@ import logging
 import os
 import socket
 import time
-from datetime import datetime, timezone
+from threading import Event, Thread
 
 from applications.services.gemini_engine import process_annual_report
 from applications.services.report_job_queue import (
-    claim_next_job,
-    update_job,
+    claim_job,
+    complete_job,
+    fail_job,
+    heartbeat_job,
 )
 
 logging.basicConfig(
@@ -18,81 +20,62 @@ logging.basicConfig(
 
 logger = logging.getLogger("worksphere.report_worker")
 
-POLL_SECONDS = float(
-    os.getenv("WORKER_POLL_SECONDS", "5")
-)
-
-WORKER_ID = f"{socket.gethostname()}-{os.getpid()}"
+WORKER_ID = os.getenv("WORKER_ID") or f"{socket.gethostname()}-{os.getpid()}"
+JOB_ID = os.getenv("JOB_ID")
+REPORT_ID = os.getenv("REPORT_ID")
 
 
-def utc_now():
-    return datetime.now(timezone.utc).isoformat()
+def is_retryable(error: Exception) -> bool:
+    message = str(error).lower()
+    permanent_markers = ("missing", "not found", "invalid", "authentication", "unauthorized")
+    return not any(marker in message for marker in permanent_markers)
 
 
-def run_forever():
-    logger.info("Report worker started: %s", WORKER_ID)
-
-    while True:
+def heartbeat_loop(job_id: str, stop_event: Event) -> None:
+    while not stop_event.wait(60):
         try:
-            job = claim_next_job(WORKER_ID)
-
-            if not job:
-                time.sleep(POLL_SECONDS)
-                continue
-
-            job_id = job["id"]
-            report_id = job["annual_report_id"]
-
-            logger.info(
-                "Starting job %s for report %s",
-                job_id,
-                report_id,
-            )
-
-            try:
-                process_annual_report(report_id)
-
-                update_job(job_id, {
-                    "status": "completed",
-                    "last_error": None,
-                    "completed_at": utc_now(),
-                    "locked_at": None,
-                    "worker_id": None,
-                })
-
-                logger.info("Job %s completed", job_id)
-
-            except Exception as exc:
-                logger.exception(
-                    "Processing failed for report %s",
-                    report_id,
-                )
-
-                attempts = int(job.get("attempts") or 1)
-                max_attempts = int(job.get("max_attempts") or 2)
-
-                terminal_failure = attempts >= max_attempts
-
-                update_job(job_id, {
-                    "status": (
-                        "failed"
-                        if terminal_failure
-                        else "queued"
-                    ),
-                    "last_error": (
-                        f"{type(exc).__name__}: {str(exc)[:1500]}"
-                    ),
-                    "completed_at": (
-                        utc_now() if terminal_failure else None
-                    ),
-                    "locked_at": None,
-                    "worker_id": None,
-                })
-
+            if not heartbeat_job(job_id, WORKER_ID):
+                logger.warning("Job %s heartbeat was rejected; worker no longer owns it", job_id)
+                return
         except Exception:
-            logger.exception("Worker loop failed.")
-            time.sleep(POLL_SECONDS)
+            logger.exception("Could not update heartbeat for job %s", job_id)
+
+
+def process_job(job_id: str, report_id: str) -> int:
+    job = claim_job(job_id, report_id, WORKER_ID)
+    if not job:
+        logger.info("Job %s was already claimed, completed, or made stale", job_id)
+        return 0
+
+    stop_event = Event()
+    heartbeat = Thread(target=heartbeat_loop, args=(job_id, stop_event), daemon=True)
+    heartbeat.start()
+    started_at = time.monotonic()
+    try:
+        result = process_annual_report(report_id, already_claimed=True)
+        run_id = result.get("processing_run", {}).get("id") if result else None
+        completed = complete_job(job_id, WORKER_ID, run_id, {
+            "report_id": report_id,
+            "evidence_count": len(result.get("signals", [])) if result else 0,
+            "source_candidate_count": (result.get("retrieval_stats", {}) or {}).get("candidate_count", 0) if result else 0,
+            "processing_duration_seconds": round(time.monotonic() - started_at, 2),
+        })
+        if not completed:
+            raise RuntimeError("Job completion was rejected by Supabase.")
+        logger.info("Completed job %s for report %s", job_id, report_id)
+        return 0
+    except Exception as error:
+        message = f"{type(error).__name__}: {str(error)[:3800]}"
+        logger.exception("Processing failed for job %s report %s", job_id, report_id)
+        fail_job(job_id, WORKER_ID, message, retryable=is_retryable(error))
+        return 1
+    finally:
+        stop_event.set()
+        heartbeat.join(timeout=5)
 
 
 if __name__ == "__main__":
-    run_forever()
+    if not JOB_ID or not REPORT_ID:
+        logger.error("JOB_ID and REPORT_ID environment variables are required")
+        raise SystemExit(1)
+    raise SystemExit(process_job(JOB_ID, REPORT_ID))

@@ -69,6 +69,7 @@ from applications.services.processing_runs import (
     create_processing_run,
     fail_processing_run,
 )
+from applications.services.report_storage import download_report, upload_report
 from applications.services.supabase_client import supabase
 
 load_dotenv()
@@ -1446,6 +1447,18 @@ def _load_report_text(
                 },
             )
 
+    storage_path = report.get("document_storage_path")
+    if storage_path:
+        storage_file = __import__("pathlib").Path("storage/reports") / f"{report['id']}.pdf"
+        downloaded = download_report(report["id"], storage_file)
+        if downloaded:
+            document = extract_report_text(downloaded)
+            return document["raw_text"], document["page_count"], {
+                "local_file_path": str(downloaded),
+                "document_storage_path": storage_path,
+                "document_storage_bucket": report.get("document_storage_bucket"),
+            }
+
     print(
         "Local annual-report PDF is unavailable. "
         "Fetching the latest NSE report..."
@@ -1484,6 +1497,7 @@ def process_annual_report(
     *,
     client=None,
     limiter: GeminiRateLimiter | None = None,
+    already_claimed: bool = False,
 ) -> dict[str, Any]:
     """
     Run the complete production annual-report intelligence pipeline.
@@ -1517,7 +1531,8 @@ def process_annual_report(
 
     # The conditional update prevents concurrent requests in separate Flask
     # workers from processing the same report at the same time.
-    claim_report_for_processing(report_id)
+    if not already_claimed:
+        claim_report_for_processing(report_id)
     try:
         run = create_processing_run(
             company_id=company["id"],
@@ -1569,6 +1584,23 @@ def process_annual_report(
 
             if value is not None:
                 metadata_updates[field] = value
+
+        try:
+            if report.get("document_storage_path"):
+                storage_metadata = None
+            else:
+                storage_metadata = upload_report(report_id, __import__("pathlib").Path(
+                    ingestion_metadata["local_file_path"]
+                ))
+            if storage_metadata:
+                metadata_updates.update({
+                    "document_storage_bucket": storage_metadata["bucket"],
+                    "document_storage_path": storage_metadata["path"],
+                    "document_size_bytes": storage_metadata["size"],
+                    "document_sha256": storage_metadata["sha256"],
+                })
+        except Exception as storage_error:
+            print(f"Could not persist annual report PDF: {type(storage_error).__name__}")
 
         if ingestion_metadata.get("financial_year"):
             metadata_updates["financial_year"] = (

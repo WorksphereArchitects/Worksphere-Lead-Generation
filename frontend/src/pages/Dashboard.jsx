@@ -10,6 +10,8 @@ import {
   getCompanyIntelligence,
   getCompanyNews,
   ingestCompanyAnnualReport,
+  getAnnualReportIngestionStatus,
+  getAnnualReportProcessingStatus,
   ingestCompanyNews,
   processAnnualReport,
   updateCompanySalesStage,
@@ -99,6 +101,7 @@ function mapCompanyIntelligence(data, newsData) {
         processingStatus:
           latestReport.processing_status,
         nseUrl: latestReport.nse_url,
+        storagePath: latestReport.document_storage_path,
           latestRun,
       }
       : {
@@ -173,6 +176,8 @@ export default function Dashboard() {
    */
   const [selectedCompany, setSelectedCompany] =
     useState(null);
+  const selectedCompanyRef = useRef(null);
+  selectedCompanyRef.current = selectedCompany;
 
   const [detailsOpen, setDetailsOpen] =
     useState(false);
@@ -295,6 +300,50 @@ export default function Dashboard() {
       window.clearTimeout(timerId);
     };
   }, [detailsOpen, selectedCompany?.id, selectedCompany?.newsState]);
+
+  useEffect(() => {
+    const reportId = selectedCompany?.annualReport?.id;
+    if (!detailsOpen || !reportId) return undefined;
+
+    let cancelled = false;
+    let timerId;
+    const poll = async () => {
+      try {
+        const statusData = await getAnnualReportProcessingStatus(reportId);
+        if (cancelled) return;
+        const nextStatus = statusData.status || statusData.report_status;
+        setSelectedCompany((current) => (
+          current?.annualReport?.id === reportId
+            ? {
+              ...current,
+              annualReport: {
+                ...current.annualReport,
+                processingStatus: nextStatus,
+                job: statusData.job || current.annualReport.job,
+                processingError: statusData.error || null,
+              },
+            }
+            : current
+        ));
+        if (nextStatus === "completed") {
+          await loadCompanyDetails(selectedCompanyRef.current);
+          return;
+        }
+        if (nextStatus === "queued" || nextStatus === "processing") {
+          timerId = window.setTimeout(poll, 5000);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setReportActionError(error.message || "Could not refresh report status.");
+        timerId = window.setTimeout(poll, 10000);
+      }
+    };
+    timerId = window.setTimeout(poll, 500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timerId);
+    };
+  }, [detailsOpen, selectedCompany?.annualReport?.id]);
 
 
   /*
@@ -522,7 +571,23 @@ export default function Dashboard() {
     setReportActionLoading(true);
     setReportActionError(null);
     try {
-      await ingestCompanyAnnualReport(company.id);
+      const response = await ingestCompanyAnnualReport(company.id);
+      const jobId = response.job?.id;
+      if (jobId) {
+        const startedAt = Date.now();
+        let status = response.job?.status || "queued";
+        while (Date.now() - startedAt < 10 * 60 * 1000 && ["queued", "processing"].includes(status)) {
+          await new Promise((resolve) => window.setTimeout(resolve, 4000));
+          const statusResponse = await getAnnualReportIngestionStatus(company.id, jobId);
+          status = statusResponse.job?.status;
+          if (status === "failed") throw new Error(statusResponse.job.failure_reason || "Annual report ingestion failed.");
+          if (status === "completed") break;
+        }
+        if (status !== "completed") {
+          setReportActionError("Annual report ingestion is still running; you can revisit this company to check its status.");
+          return;
+        }
+      }
       await loadCompanyDetails(company);
     } catch (error) {
       setReportActionError(error.message || "Annual report ingestion failed.");
@@ -536,7 +601,9 @@ export default function Dashboard() {
     setReportActionLoading(true);
     setReportActionError(null);
     try {
-      await processAnnualReport(company.annualReport.id);
+      await processAnnualReport(company.annualReport.id, {
+        retry: company.annualReport.processingStatus === "failed",
+      });
       await loadCompanyDetails(company);
     } catch (error) {
       setReportActionError(error.message || "Annual report processing failed.");

@@ -1,7 +1,7 @@
 
 name: Process Annual Report
 
-run-name: Process annual report ${{ inputs.report_id }}
+run-name: Process annual report ${{ inputs.report_id }} (job ${{ inputs.job_id }})
 
 on:
   workflow_dispatch:
@@ -10,12 +10,16 @@ on:
         description: "Supabase annual report UUID"
         required: true
         type: string
+      job_id:
+        description: "Supabase report processing job UUID"
+        required: true
+        type: string
 
 # Only one annual report workflow runs at a time.
 # Additional reports wait in the queue.
 concurrency:
-  group: worksphere-annual-report-processing
-  queue: max
+  group: worksphere-annual-report-${{ inputs.report_id }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -52,12 +56,32 @@ jobs:
         run: |
            python -m spacy download en_core_web_sm
 
+      - name: Validate workflow inputs
+        env:
+          JOB_ID: ${{ inputs.job_id }}
+          REPORT_ID: ${{ inputs.report_id }}
+        run: |
+          python - <<'PY'
+          import os
+          from uuid import UUID
+          for name in ("JOB_ID", "REPORT_ID"):
+              value = os.environ.get(name, "")
+              if not value:
+                  raise SystemExit(f"{name} is required")
+              try:
+                  UUID(value)
+              except ValueError as error:
+                  raise SystemExit(f"{name} must be a UUID") from error
+          PY
+
       - name: Process annual report
         working-directory: backend
         env:
           PYTHONPATH: backend
 
           REPORT_ID: ${{ inputs.report_id }}
+          JOB_ID: ${{ inputs.job_id }}
+          WORKER_ID: github-${{ github.run_id }}-${{ github.run_attempt }}
 
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -66,4 +90,41 @@ jobs:
 
           # Add other backend environment variables here.
         run: |
-          python -m scripts.process_annual_report
+          touch /tmp/worksphere-worker-started
+          python -m scripts.report_worker
+
+      - name: Record workflow failure
+        if: failure()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          JOB_ID: ${{ inputs.job_id }}
+          REPORT_ID: ${{ inputs.report_id }}
+        run: |
+          if [ -f /tmp/worksphere-worker-started ]; then exit 0; fi
+          python - <<'PY'
+          import os
+          import urllib.request
+          import json
+          from datetime import datetime, timezone
+          base = os.environ["SUPABASE_URL"].rstrip("/")
+          key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+          job_id = os.environ["JOB_ID"]
+          report_id = os.environ["REPORT_ID"]
+          headers = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+          error = "GitHub Actions setup failed before worker startup"
+          timestamp = datetime.now(timezone.utc).isoformat()
+          updates = [
+              (f"/rest/v1/report_processing_jobs?id=eq.{job_id}&status=eq.queued", {"status": "failed", "last_error": error, "completed_at": timestamp}),
+              (f"/rest/v1/annual_reports?id=eq.{report_id}", {"processing_status": "failed"}),
+          ]
+          try:
+              for path, body in updates:
+                  request = urllib.request.Request(f"{base}{path}", data=json.dumps(body).encode(), method="PATCH", headers=headers)
+                  urllib.request.urlopen(request, timeout=15).read()
+              history = {"job_id": job_id, "status": "failed", "event": "workflow_setup_failed", "error_message": error}
+              request = urllib.request.Request(f"{base}/rest/v1/report_processing_job_history", data=json.dumps(history).encode(), method="POST", headers=headers)
+              urllib.request.urlopen(request, timeout=15).read()
+          except Exception as error:
+              print(f"Could not record workflow failure: {type(error).__name__}")
+          PY
