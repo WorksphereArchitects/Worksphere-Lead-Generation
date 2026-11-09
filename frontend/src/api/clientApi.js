@@ -86,15 +86,6 @@
     );
   }
 
-  export async function processAnnualReport(reportId) {
-    return apiRequest(
-      `/reports/${encodeURIComponent(reportId)}/process`,
-      {
-        method: "POST",
-      }
-    );
-  }
-
   export async function ingestCompanyAnnualReport(companyId) {
     return apiRequest(
       `/reports/companies/${encodeURIComponent(companyId)}/ingest`,
