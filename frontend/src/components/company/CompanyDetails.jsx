@@ -1,4 +1,3 @@
-
 import {
   CheckCircle2,
   Sparkles,
@@ -25,6 +24,10 @@ import CompanyOverview from "./CompanyOverview";
 import AnnualIntelligence from "./AnnualIntelligence";
 import RecentIntelligence from "./RecentIntelligence";
 
+function isNewsProcessing(state) {
+  return state === "loading" || state === "processing";
+}
+
 export default function CompanyDetails({
   company,
   open,
@@ -44,8 +47,13 @@ export default function CompanyDetails({
 }) {
   if (!company) return null;
 
-  const annualEvidence = company.annualEvidence || [];
-  const recentNews = company.recentIntelligence || [];
+  const annualEvidence = Array.isArray(company.annualEvidence)
+    ? company.annualEvidence
+    : [];
+
+  const recentNews = Array.isArray(company.recentIntelligence)
+    ? company.recentIntelligence
+    : [];
 
   const resolvedCount =
     company.backendData?.summary?.resolved_evidence_count ?? 0;
@@ -53,22 +61,23 @@ export default function CompanyDetails({
   const unresolvedCount =
     company.backendData?.summary?.unresolved_evidence_count ?? 0;
 
+  // Keep news loading active during the initial request and
+  // throughout background ingestion.
   const newsLoading =
     newsActionLoading ||
-    company.newsState === "loading" ||
-    company.newsState === "processing";
+    isNewsProcessing(company.newsState);
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent
         className="
-    !fixed !left-2 !top-2 !translate-x-0 !translate-y-0
-    !w-[calc(100vw-1rem)] !max-w-none
-    !h-[calc(100dvh-1rem)] !max-h-none
-    flex flex-col gap-0 overflow-hidden
-    rounded-2xl border bg-background p-0 shadow-2xl
-    sm:!max-w-none
-  "
+          !fixed !left-2 !top-2 !translate-x-0 !translate-y-0
+          !w-[calc(100vw-1rem)] !max-w-none
+          !h-[calc(100dvh-1rem)] !max-h-none
+          flex flex-col gap-0 overflow-hidden
+          rounded-2xl border bg-background p-0 shadow-2xl
+          sm:!max-w-none
+        "
       >
         {/* Header */}
         <AlertDialogHeader className="shrink-0 border-b bg-background px-5 py-4 sm:px-8 sm:py-5">
@@ -130,6 +139,7 @@ export default function CompanyDetails({
                 <p className="font-semibold">
                   Company details could not be loaded
                 </p>
+
                 <p className="mt-1">{error}</p>
               </div>
             )}
@@ -142,6 +152,7 @@ export default function CompanyDetails({
                     <h2 className="text-base font-semibold tracking-tight">
                       Intelligence at a glance
                     </h2>
+
                     <p className="mt-1 text-sm text-muted-foreground">
                       A consolidated view of company signals and available sources.
                     </p>
@@ -173,7 +184,11 @@ export default function CompanyDetails({
                       icon={Newspaper}
                       label="Recent news"
                       value={recentNews.length}
-                      description="Available news intelligence articles"
+                      description={
+                        newsLoading
+                          ? "News ingestion in progress"
+                          : "Available news intelligence articles"
+                      }
                     />
                   </div>
                 </section>
@@ -253,7 +268,9 @@ function SummaryCard({
     <div className="group rounded-xl border bg-background p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm text-muted-foreground">{label}</p>
+          <p className="text-sm text-muted-foreground">
+            {label}
+          </p>
 
           <p className="mt-3 text-3xl font-semibold tracking-tight tabular-nums">
             {value}
