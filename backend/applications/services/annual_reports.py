@@ -9,25 +9,18 @@ from applications.services.supabase_client import supabase
 class ReportAlreadyProcessingError(RuntimeError):
     """Raised when another request currently owns this report's processing."""
 
-def make_json_serializable(value):
-    """
-    Convert Python objects into JSON-compatible values.
-    """
-
+def _make_json_serializable(value):
     if isinstance(value, Path):
         return str(value)
 
     if isinstance(value, dict):
         return {
-            key: make_json_serializable(item)
+            key: _make_json_serializable(item)
             for key, item in value.items()
         }
 
     if isinstance(value, (list, tuple)):
-        return [
-            make_json_serializable(item)
-            for item in value
-        ]
+        return [_make_json_serializable(item) for item in value]
 
     return value
 
@@ -226,9 +219,10 @@ def update_annual_report(
             "No fields supplied for annual report update."
         )
 
+    updates = _make_json_serializable(updates)
+
     response = (
-        supabase
-        .table("annual_reports")
+        supabase.table("annual_reports")
         .update(updates)
         .eq("id", report_id)
         .execute()
@@ -239,7 +233,7 @@ def update_annual_report(
             f"Annual report not found or update failed: {report_id}"
         )
 
-    return response.data
+    return response.data[0]
 
 
 def update_processing_status(
