@@ -2,13 +2,34 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
-
+from pathlib import Path
 from applications.services.supabase_client import supabase
 
 
 class ReportAlreadyProcessingError(RuntimeError):
     """Raised when another request currently owns this report's processing."""
 
+def make_json_serializable(value):
+    """
+    Convert Python objects into JSON-compatible values.
+    """
+
+    if isinstance(value, Path):
+        return str(value)
+
+    if isinstance(value, dict):
+        return {
+            key: make_json_serializable(item)
+            for key, item in value.items()
+        }
+
+    if isinstance(value, (list, tuple)):
+        return [
+            make_json_serializable(item)
+            for item in value
+        ]
+
+    return value
 
 # ============================================================
 # CREATE
@@ -210,7 +231,6 @@ def update_annual_report(
         .table("annual_reports")
         .update(updates)
         .eq("id", report_id)
-        .select("*")
         .execute()
     )
 
@@ -219,7 +239,7 @@ def update_annual_report(
             f"Annual report not found or update failed: {report_id}"
         )
 
-    return response.data[0]
+    return response.data
 
 
 def update_processing_status(
