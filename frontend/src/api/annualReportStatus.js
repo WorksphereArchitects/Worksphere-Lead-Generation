@@ -1,4 +1,5 @@
 const REPORT_STATES = new Set([
+  "pending",
   "queued",
   "processing",
   "completed",
@@ -16,7 +17,7 @@ function normalizeState(value) {
   if (["done", "success", "succeeded", "complete"].includes(state)) {
     return "completed";
   }
-  if (["waiting", "pending", "created"].includes(state)) {
+  if (["waiting", "created"].includes(state)) {
     return "queued";
   }
   return REPORT_STATES.has(state) ? state : null;
@@ -33,7 +34,14 @@ export function getAnnualReportStatus(statusData) {
   // A job is the most precise signal while work is queued or running. Once
   // it is absent (for example, immediately after report creation), the report
   // lifecycle still tells us that the report is waiting to be processed.
-  const state = jobState || reportState || normalizeState(statusData.status) || "queued";
+  // A report can exist before processing has been requested. Keep that state
+  // separate so the UI can offer the Process report action. Once a worker job
+  // exists, its status takes precedence over the report's pending lifecycle.
+  const state = jobState || (
+    reportState === "pending"
+      ? "pending"
+      : reportState || normalizeState(statusData.status) || "pending"
+  );
   const error =
     statusData.error ||
     statusData.job?.last_error ||

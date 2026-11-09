@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react";
+import { FileText, Loader2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -80,23 +80,25 @@ export default function AnnualIntelligence({
         </div>
       ) : (
         <div className="mt-3 rounded-lg border p-4">
-          <p className="text-sm font-medium">
-            {status === "loading"
-              ? "Checking annual report processing status…"
-              : status === "failed"
-              ? "The most recent processing attempt failed."
-              : status === "queued"
-                ? "Report is queued and waiting for a processing worker."
-                : status === "processing"
-                  ? "Annual report is being processed."
-                : status === "completed" && evidence.length === 0
-                  ? "Processing completed; no evidence was found."
-                  : status === "completed"
-                    ? "Annual report processing completed."
-                    : status === "unavailable"
-                      ? report?.processingStatusError || "Report processing status is unavailable."
-                      : "The report is available but has not been processed."}
-          </p>
+          {status !== "pending" && (
+            <p className="text-sm font-medium">
+              {status === "loading"
+                ? "Checking annual report processing status…"
+                : status === "failed"
+                ? "The most recent processing attempt failed."
+                : status === "queued"
+                  ? "Report is queued and waiting for a processing worker."
+                  : status === "processing"
+                    ? "Annual report is being processed."
+                  : status === "completed" && evidence.length === 0
+                    ? "Processing completed; no evidence was found."
+                    : status === "completed"
+                      ? "Annual report processing completed."
+                      : status === "unavailable"
+                        ? report?.processingStatusError || "Report processing status is unavailable."
+                        : null}
+            </p>
+          )}
           {status === "failed" && (latestRun?.error_message || report?.processingError || job?.last_error) && (
             <p className="mt-2 text-sm text-destructive">
               {latestRun?.error_message || report?.processingError || job?.last_error}
@@ -112,13 +114,18 @@ export default function AnnualIntelligence({
               {unresolvedCount} evidence item{unresolvedCount === 1 ? " has" : "s have"} an unresolved source.
             </p>
           )}
-          {status !== "processing" && status !== "queued" && status !== "completed" && onProcess && (
+          {(status === "pending" || status === "failed") && onProcess && (
             <Button className="mt-3" size="sm" onClick={() => onProcess(company)} disabled={actionLoading}>
-              {actionLoading
-                ? "Processing…"
-                : status === "failed"
-                  ? "Retry processing"
-                  : "Process report"}
+              {actionLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Processing…
+                </>
+              ) : status === "failed" ? (
+                "Retry processing"
+              ) : (
+                "Process report"
+              )}
             </Button>
           )}
         </div>
