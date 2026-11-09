@@ -115,6 +115,11 @@ export default function AnnualIntelligence({
             </p>
           )}
           {(status === "pending" || status === "failed") && onProcess && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Report fetched, click Process Report to get evidences (Approx processing time - 10 to 15 mins)
+            </p>
+          )}
+          {(status === "pending" || status === "failed") && onProcess && (
             <Button className="mt-3" size="sm" onClick={() => onProcess(company)} disabled={actionLoading}>
               {actionLoading ? (
                 <>
@@ -124,6 +129,7 @@ export default function AnnualIntelligence({
               ) : status === "failed" ? (
                 "Retry processing"
               ) : (
+                
                 "Process report"
               )}
             </Button>
