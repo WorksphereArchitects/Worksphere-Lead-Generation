@@ -166,7 +166,7 @@ MAX_EVIDENCE_EXCERPT_CHARS = 1000
 # ============================================================
 
 class GeminiRateLimiter:
-    GEMINI_RATE_LIMITER = GeminiRateLimiter()
+    
     """
     Conservative sliding-window limiter.
 
@@ -1476,6 +1476,8 @@ def _load_report_text(
         },
     )
 
+# Global declaration of GeminiRateLimiter
+GEMINI_RATE_LIMITER = GeminiRateLimiter()
 
 def process_annual_report(
     report_id: str,
