@@ -3,14 +3,9 @@ import logging
 import traceback
 import os
 import hmac
-import threading
-
-from concurrent.futures import ThreadPoolExecutor
 from uuid import UUID
 
 from flask import Blueprint, jsonify, request, current_app
-
-from applications.services.gemini_engine import process_annual_report
 from applications.services.annual_reports import (
     get_annual_report,
     ReportAlreadyProcessingError,
@@ -20,6 +15,11 @@ from applications.services.annual_report_ingestion import (
 )
 from applications.services.supabase_client import supabase
 from applications.services.nse_diagnostic import test_nse_connection
+import json
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
+
+from applications.services.annual_reports import get_annual_report
 
 
 logger = logging.getLogger(__name__)
@@ -31,17 +31,88 @@ reports = Blueprint(
 )
 
 
-# --------------------------------------------------
-# SINGLE REPORT PROCESSING CONFIGURATION
-# --------------------------------------------------
+def trigger_github_workflow(report_id):
+    """
+    Trigger the annual report processing GitHub Actions workflow.
+    """
 
-executor = ThreadPoolExecutor(
-    max_workers=1,
-    thread_name_prefix="annual-report-worker",
-)
+    token = os.getenv("GITHUB_ACTIONS_TOKEN")
+    owner = os.getenv("GITHUB_REPOSITORY_OWNER")
+    repo = os.getenv("GITHUB_REPOSITORY_NAME")
+    workflow = os.getenv("GITHUB_WORKFLOW_FILE")
+    branch = os.getenv("GITHUB_WORKFLOW_REF", "main")
 
-processing_lock = threading.Lock()
-active_report_id = None
+    required = {
+        "GITHUB_ACTIONS_TOKEN": token,
+        "GITHUB_REPOSITORY_OWNER": owner,
+        "GITHUB_REPOSITORY_NAME": repo,
+        "GITHUB_WORKFLOW_FILE": workflow,
+    }
+
+    missing = [
+        name for name, value in required.items()
+        if not value
+    ]
+
+    if missing:
+        raise RuntimeError(
+            "Missing GitHub configuration: " + ", ".join(missing)
+        )
+
+    url = (
+        f"https://api.github.com/repos/{owner}/{repo}"
+        f"/actions/workflows/{workflow}/dispatches"
+    )
+
+    payload = {
+        "ref": branch,
+        "inputs": {
+            "report_id": report_id,
+        },
+    }
+
+    request = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "Content-Type": "application/json",
+            "User-Agent": "WorkSphere-Lead-Generation",
+        },
+        method="POST",
+    )
+
+    try:
+        with urlopen(request, timeout=20) as response:
+            if response.status not in (200, 201, 204):
+                raise RuntimeError(
+                    f"GitHub returned HTTP {response.status}"
+                )
+
+    except HTTPError as error:
+        details = error.read().decode(
+            "utf-8",
+            errors="replace",
+        )
+
+        logger.error(
+            "GitHub workflow dispatch failed: HTTP %s - %s",
+            error.code,
+            details,
+        )
+
+        raise RuntimeError(
+            f"GitHub workflow dispatch failed (HTTP {error.code})."
+        ) from error
+
+    except URLError as error:
+        logger.exception("Could not connect to GitHub API.")
+
+        raise RuntimeError(
+            "Could not connect to GitHub."
+        ) from error
 
 
 def _process_report_background(app, report_id):
@@ -88,10 +159,9 @@ def _process_report_background(app, report_id):
 # PROCESS ANNUAL REPORT
 # --------------------------------------------------
 
+
 @reports.post("/<string:report_id>/process")
 def process_report(report_id):
-
-    global active_report_id
 
     try:
         UUID(report_id)
@@ -110,70 +180,44 @@ def process_report(report_id):
                 "error": "Annual report not found.",
             }), 404
 
-        with processing_lock:
+        if report.get("processing_status") == "processing":
+            return jsonify({
+                "success": False,
+                "error": "Annual report is already processing.",
+            }), 409
 
-            # Prevent any second report from starting.
-            if active_report_id is not None:
-                return jsonify({
-                    "success": False,
-                    "error": (
-                        "Another annual report is currently "
-                        "being processed. Please wait."
-                    ),
-                    "active_report_id": active_report_id,
-                }), 409
+        # GitHub now handles the actual processing.
+        trigger_github_workflow(report_id)
 
-            # Prevent duplicate processing of the same report.
-            if report.get("processing_status") == "processing":
-                return jsonify({
-                    "success": False,
-                    "error": "Annual report is already processing.",
-                }), 409
-
-            # Reserve the single processing slot.
-            active_report_id = report_id
-
-            try:
-                app = current_app._get_current_object()
-
-                executor.submit(
-                    _process_report_background,
-                    app,
-                    report_id,
-                )
-
-            except Exception:
-                active_report_id = None
-                raise
+        logger.info(
+            "GitHub processing workflow triggered for report %s",
+            report_id,
+        )
 
         return jsonify({
             "success": True,
-            "message": "Annual report processing started.",
+            "message": "Annual report queued successfully.",
             "report_id": report_id,
             "status": "queued",
         }), 202
 
-    except ReportAlreadyProcessingError:
-        return jsonify({
-            "success": False,
-            "error": "Annual report is already processing.",
-        }), 409
-
     except Exception:
         logger.exception(
-            "Could not start report processing: %s",
+            "Could not trigger report processing: %s",
             report_id,
         )
 
         return jsonify({
             "success": False,
             "error": "Could not start annual report processing.",
-        }), 500
+        }), 502
+
 
 
 # --------------------------------------------------
 # PROCESSING STATUS
 # --------------------------------------------------
+
 
 @reports.get("/<string:report_id>/status")
 def report_processing_status(report_id):
@@ -195,28 +239,22 @@ def report_processing_status(report_id):
                 "error": "Annual report not found.",
             }), 404
 
-        with processing_lock:
-            is_active = active_report_id == report_id
+        report_status = (
+            report.get("processing_status") or "pending"
+        )
 
-        report_status = report.get("processing_status") or "pending"
-
-        # Supabase is the source of truth for persisted status.
-        # The local lock tells us whether this process owns the job.
-        if is_active and report_status != "completed":
-            status = (
-                "processing"
-                if report_status == "processing"
-                else "queued"
-            )
-        else:
-            status = report_status
+        # The GitHub runner may be waiting to start.
+        status = (
+            "queued"
+            if report_status == "pending"
+            else report_status
+        )
 
         return jsonify({
             "success": True,
             "report_id": report_id,
             "status": status,
             "report_status": report_status,
-            "is_active": is_active,
         }), 200
 
     except Exception:
@@ -227,8 +265,9 @@ def report_processing_status(report_id):
 
         return jsonify({
             "success": False,
-            "error": "Could not retrieve processing status.",
+            "error": "Could not retrieve report status.",
         }), 500
+
 
 
 # --------------------------------------------------

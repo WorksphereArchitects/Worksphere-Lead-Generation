@@ -168,11 +168,8 @@
 
 
 
-// --------------------------------------------------
-// Annual Report Processing
-// --------------------------------------------------
 
-const REPORT_POLL_INTERVAL = 4000;
+const REPORT_POLL_INTERVAL = 5000;
 const REPORT_MAX_WAIT = 30 * 60 * 1000;
 
 export async function getAnnualReportProcessingStatus(reportId) {
@@ -183,7 +180,7 @@ export async function getAnnualReportProcessingStatus(reportId) {
 
 export async function processAnnualReport(reportId) {
 
-  // Step 1: Submit processing request.
+  // Submit the job to Flask, which triggers GitHub Actions.
   const queued = await apiRequest(
     `/reports/${encodeURIComponent(reportId)}/process`,
     {
@@ -193,16 +190,16 @@ export async function processAnnualReport(reportId) {
 
   if (!queued.success) {
     throw new Error(
-      queued.error || "Could not start report processing."
+      queued.error || "Could not queue annual report."
     );
   }
 
   const startedAt = Date.now();
 
-  // Step 2: Poll until processing completes or fails.
+  // Wait for GitHub Actions to finish processing.
   while (Date.now() - startedAt < REPORT_MAX_WAIT) {
 
-    await new Promise((resolve) =>
+    await new Promise(resolve =>
       setTimeout(resolve, REPORT_POLL_INTERVAL)
     );
 
@@ -221,25 +218,20 @@ export async function processAnnualReport(reportId) {
 
     if (status === "failed") {
       throw new Error(
-        "Annual report processing failed. Check backend logs."
-      );
-    }
-
-    if (status === "pending") {
-      throw new Error(
-        "Report processing is no longer active. Please retry."
+        "Annual report processing failed. Check GitHub Actions logs."
       );
     }
 
     if (!["queued", "processing"].includes(status)) {
       throw new Error(
-        `Unexpected report processing status: ${status}`
+        `Unexpected processing status: ${status}`
       );
     }
   }
 
   throw new Error(
-    "Report processing exceeded the 30-minute waiting period. " +
-    "Check the report status before retrying."
+    "Processing is taking longer than expected. " +
+    "Check the GitHub Actions workflow."
   );
 }
+
