@@ -76,7 +76,29 @@
     if (!Array.isArray(data?.articles) || typeof data?.state !== "string") {
       throw new Error("The company news API returned an unexpected response.");
     }
-    return data;
+
+    // Keep the backend payload as the source of truth, but expose a stable
+    // shape to the UI. The news API uses rss_description/published_at while
+    // the card component uses summary/date aliases.
+    return {
+      ...data,
+      articles: data.articles.map((article) => ({
+        ...article,
+        summary: article.summary || article.rss_description || null,
+        source: article.source || article.publisher || null,
+        date: article.date || article.published_at || null,
+        url: article.url || article.source_url || null,
+        category:
+          article.category ||
+          article.type ||
+          article.events?.[0]?.category ||
+          "Business update",
+        why_it_matters:
+          article.why_it_matters ||
+          article.events?.[0]?.description ||
+          null,
+      })),
+    };
   }
 
   export async function ingestCompanyNews(companyId, days = 30) {

@@ -662,6 +662,23 @@ export default function Dashboard() {
           }
           : current
       ));
+
+      // The POST only queues the worker. Fetch once immediately so the UI
+      // uses the run returned by the API even when the worker finishes very
+      // quickly, then the processing effect continues polling if needed.
+      const newsData = await getCompanyNews(company.id);
+      if (requestId !== detailsRequestId.current) return;
+      setSelectedCompany((current) => (
+        current?.id === company.id
+          ? {
+            ...current,
+            recentIntelligence: newsData.articles,
+            newsState: newsData.state,
+            newsLatestRun: newsData.latest_run || response.run || current.newsLatestRun,
+            newsError: null,
+          }
+          : current
+      ));
     } catch (error) {
       if (requestId === detailsRequestId.current) {
         setNewsActionError(error.message || "News ingestion failed.");
