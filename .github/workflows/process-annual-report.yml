@@ -24,6 +24,11 @@ jobs:
   process-report:
     name: Process Annual Report
     runs-on: ubuntu-latest
+    env:
+      FR_API_KEY: ${{ secrets.FR_API_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     timeout-minutes: 360
 
     steps:
