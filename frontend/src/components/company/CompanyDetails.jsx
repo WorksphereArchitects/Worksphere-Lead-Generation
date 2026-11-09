@@ -53,6 +53,11 @@ export default function CompanyDetails({
   const unresolvedCount =
     company.backendData?.summary?.unresolved_evidence_count ?? 0;
 
+  const newsLoading =
+    newsActionLoading ||
+    company.newsState === "loading" ||
+    company.newsState === "processing";
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent
@@ -194,6 +199,7 @@ export default function CompanyDetails({
                   <RecentIntelligence
                     company={company}
                     actionLoading={newsActionLoading}
+                    newsLoading={newsLoading}
                     actionError={newsActionError}
                     onFetchNews={onFetchNews}
                   />

@@ -39,10 +39,13 @@ function getCategory(item) {
 export default function RecentIntelligence({
   company,
   actionLoading = false,
+  newsLoading = false,
   actionError = null,
   onFetchNews,
 }) {
   const news = company.recentIntelligence || [];
+  const isFetching = newsLoading || actionLoading;
+  const hasNewsError = actionError || company.newsError;
 
   return (
     <div className="">
@@ -59,6 +62,13 @@ export default function RecentIntelligence({
             </h3>
 
             <Badge variant="secondary">{news.length}</Badge>
+
+            {isFetching && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                Updating
+              </span>
+            )}
           </div>
 
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -71,61 +81,74 @@ export default function RecentIntelligence({
           <Button
             variant="outline"
             size="sm"
-            disabled={actionLoading}
+            disabled={isFetching}
             onClick={() => onFetchNews(company)}
             className="shrink-0 gap-2"
           >
             <RefreshCw
               className={`h-4 w-4 ${
-                actionLoading ? "animate-spin" : ""
+                isFetching ? "animate-spin" : ""
               }`}
             />
-            {actionLoading ? "Fetching news…" : "Refresh news"}
+            {isFetching ? "Fetching news…" : "Refresh news"}
           </Button>
         )}
       </div>
 
-      {actionError && (
+      {hasNewsError && (
         <div
           role="alert"
           className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
         >
-          {actionError}
+          {hasNewsError}
+        </div>
+      )}
+
+      {isFetching && news.length > 0 && (
+        <div
+          role="status"
+          className="mt-5 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/[0.03] px-4 py-3 text-sm text-muted-foreground"
+        >
+          <RefreshCw className="h-4 w-4 shrink-0 animate-spin text-primary" />
+          <span>
+            {company.newsState === "processing"
+              ? "News is being analyzed. Your current articles will stay available."
+              : "Loading saved news intelligence…"}
+          </span>
         </div>
       )}
 
       {/* Empty state */}
       {news.length === 0 ? (
-        <div className="mt-5 flex flex-col items-center justify-center rounded-2xl border border-dashed bg-muted/20 px-6 py-12 text-center">
-          <div className="rounded-2xl border bg-background p-4 shadow-sm">
-            <Newspaper className="h-7 w-7 text-muted-foreground" />
+        isFetching ? (
+          <NewsLoadingState />
+        ) : (
+          <div className="mt-5 flex flex-col items-center justify-center rounded-2xl border border-dashed bg-muted/20 px-6 py-12 text-center">
+            <div className="rounded-2xl border bg-background p-4 shadow-sm">
+              <Newspaper className="h-7 w-7 text-muted-foreground" />
+            </div>
+
+            <h4 className="mt-4 text-sm font-semibold">
+              No recent news available
+            </h4>
+
+            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+              Recent news articles will appear here when the news
+              ingestion pipeline returns results for this company.
+            </p>
+
+            {onFetchNews && (
+              <Button
+                className="mt-5 gap-2"
+                variant="outline"
+                onClick={() => onFetchNews(company)}
+              >
+                <RefreshCw className="h-4 w-4" />
+                Fetch news
+              </Button>
+            )}
           </div>
-
-          <h4 className="mt-4 text-sm font-semibold">
-            No recent news available
-          </h4>
-
-          <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-            Recent news articles will appear here when the news
-            ingestion pipeline returns results for this company.
-          </p>
-
-          {onFetchNews && (
-            <Button
-              className="mt-5 gap-2"
-              variant="outline"
-              disabled={actionLoading}
-              onClick={() => onFetchNews(company)}
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${
-                  actionLoading ? "animate-spin" : ""
-                }`}
-              />
-              {actionLoading ? "Fetching news…" : "Fetch news"}
-            </Button>
-          )}
-        </div>
+        )
       ) : (
         /* Responsive article grid */
         <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
@@ -245,6 +268,27 @@ export default function RecentIntelligence({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function NewsLoadingState() {
+  return (
+    <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3" role="status" aria-label="Loading news">
+      {[0, 1, 2].map((item) => (
+        <div key={item} className="rounded-2xl border bg-background p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div className="h-5 w-24 animate-pulse rounded-full bg-muted" />
+            <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+          </div>
+          <div className="mt-5 h-5 w-11/12 animate-pulse rounded bg-muted" />
+          <div className="mt-3 h-5 w-3/4 animate-pulse rounded bg-muted" />
+          <div className="mt-6 h-3 w-full animate-pulse rounded bg-muted" />
+          <div className="mt-2 h-3 w-5/6 animate-pulse rounded bg-muted" />
+          <div className="mt-8 h-4 w-28 animate-pulse rounded bg-muted" />
+        </div>
+      ))}
+      <span className="sr-only">Fetching recent news…</span>
     </div>
   );
 }
