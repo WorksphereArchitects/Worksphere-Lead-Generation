@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, time as dt_time, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Any
 
-from applications.services.discovery import discover_company_news
+from applications.services.discovery import (
+    discover_company_news,
+    get_current_financial_year,
+)
 from applications.services.discovery_relevance import (
     CLASSIFICATION_BATCH_SIZE,
     classify_articles,
@@ -15,7 +19,13 @@ from applications.services.discovery_relevance import (
 from applications.services.public_errors import safe_error_summary
 from applications.services.supabase_client import supabase
 
-MAX_NEWS_CANDIDATES_PER_RUN = 10
+# None means no arbitrary candidate cap. A finite cap can be configured through
+# NEWS_MAX_CANDIDATES_PER_RUN when an operator deliberately wants one.
+import os
+
+_configured_cap = os.getenv("NEWS_MAX_CANDIDATES_PER_RUN", "").strip()
+MAX_NEWS_CANDIDATES_PER_RUN = int(_configured_cap) if _configured_cap else None
+
 _NEWS_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="company-news")
 logger = logging.getLogger(__name__)
 
@@ -72,12 +82,10 @@ def _insert_run(company_id: str, lookback_days: int) -> dict[str, Any]:
         "persistence_failed_count": 0,
         "malformed_count": 0,
         "truncated_count": 0,
-        "metadata": {"provider": "google_news_rss", "progress": {
-            "stage": "queued",
-            "completed": 0,
-            "total": 0,
-            "reused": 0,
-        }},
+        "metadata": {
+            "provider": "google_news_rss",
+            "progress": {"stage": "queued", "completed": 0, "total": 0, "reused": 0},
+        },
     }
     try:
         response = (
@@ -87,7 +95,10 @@ def _insert_run(company_id: str, lookback_days: int) -> dict[str, Any]:
             .execute()
         )
     except Exception as error:
-        if getattr(error, "code", None) == "23505" or "ux_news_ingestion_runs_one_processing_per_company" in str(error):
+        if (
+            getattr(error, "code", None) == "23505"
+            or "ux_news_ingestion_runs_one_processing_per_company" in str(error)
+        ):
             raise NewsRunConflict from error
         raise NewsPersistenceFailure("Could not create the news ingestion run.") from error
 
@@ -158,12 +169,68 @@ def _prior_articles(company_id: str, urls: list[str]) -> dict[str, dict[str, Any
     }
 
 
+def _mark_reused_article_seen(company_id: str, normalized_url: str, run_id: str) -> None:
+    """Refresh last-seen/run references without reclassifying an existing article."""
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        response = (
+            supabase.table("news_articles")
+            .update({
+                "latest_run_id": run_id,
+                "last_seen_at": now,
+                "updated_at": now,
+            })
+            .eq("company_id", company_id)
+            .eq("normalized_url", normalized_url)
+            .select("id")
+            .execute()
+        )
+    except Exception as error:
+        raise NewsPersistenceFailure("Could not refresh a previously classified article.") from error
+    if not _rows(response):
+        raise NewsPersistenceFailure("The database did not confirm the article refresh.")
+
+
+def _classification_is_reusable(previous: dict[str, Any]) -> bool:
+    return (
+        isinstance(previous.get("relevance"), dict)
+        and previous.get("relevance_status") in {"accepted", "rejected"}
+        and previous.get("processing_status") in {
+            "not_relevant", "events_extracted", "no_supported_event"
+        }
+    )
+
+
+def _failure_summary(counts: dict[str, int], discovery: dict[str, Any] | None = None) -> str | None:
+    details = []
+    for field, label in (
+        ("classification_failed_count", "classification failures"),
+        ("persistence_failed_count", "persistence failures"),
+        ("malformed_count", "malformed RSS entries"),
+        ("truncated_count", "candidates skipped by configured cap"),
+    ):
+        if counts.get(field):
+            details.append(f"{counts[field]} {label}")
+
+    if discovery:
+        metadata = discovery.get("metadata") or {}
+        if metadata.get("missing_date_count"):
+            details.append(f"{metadata['missing_date_count']} entries excluded for missing/invalid publication dates")
+        if metadata.get("out_of_period_count"):
+            details.append(f"{metadata['out_of_period_count']} entries outside the current financial year")
+    return "; ".join(details) if details else None
+
+
 def ingest_company_news(
     company: dict[str, Any],
     lookback_days: int = 30,
     run: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Run one bounded ingestion, optionally using a run queued by the API."""
+    """Discover current-FY news, classify it, and persist accurate run counts.
+
+    ``lookback_days`` remains accepted for API compatibility and is recorded
+    in the run table, but current-FY filtering is enforced by discovery.py.
+    """
     company_id = str(company.get("id") or "")
     company_name = str(company.get("name") or "").strip()
     if not company_id or not company_name:
@@ -171,6 +238,7 @@ def ingest_company_news(
 
     run = run or _insert_run(company_id, lookback_days)
     run_id = run["id"]
+
     counts = {
         "discovered_count": 0,
         "accepted_count": 0,
@@ -183,15 +251,11 @@ def ingest_company_news(
         "truncated_count": 0,
     }
 
-    progress = {
-        "stage": "discovering",
-        "completed": 0,
-        "total": 0,
-        "reused": 0,
-    }
+    progress = {"stage": "discovering", "completed": 0, "total": 0, "reused": 0}
     _update_run(run_id, {
         **counts,
         "status": "processing",
+        "failure_reason": None,
         "metadata": {"provider": "google_news_rss", "progress": progress},
     }, complete=False)
 
@@ -199,36 +263,45 @@ def ingest_company_news(
         discovery = discover_company_news(
             company,
             aliases=_company_aliases(company),
-            days=lookback_days,
+            days=lookback_days,  # retained for compatibility; FY logic takes precedence
             max_articles=MAX_NEWS_CANDIDATES_PER_RUN,
         )
     except Exception as error:
         _update_run(run_id, {
             **counts,
             "status": "failed",
+            "failed_count": 1,
             "failure_reason": safe_error_summary(error, "News discovery failed."),
         })
         raise NewsProviderFailure(
             safe_error_summary(error, "News discovery failed.")
         ) from error
 
-    articles = discovery["articles"]
-    counts["discovered_count"] = discovery["entry_count"]
-    counts["duplicate_count"] = discovery["duplicate_count"]
-    counts["malformed_count"] = discovery["malformed_count"]
-    counts["truncated_count"] = discovery["truncated_count"]
-    counts["failed_count"] = counts["malformed_count"] + counts["truncated_count"]
+    articles = discovery.get("articles") or []
+    counts["discovered_count"] = int(discovery.get("entry_count") or 0)
+    counts["duplicate_count"] = int(discovery.get("duplicate_count") or 0)
+    counts["malformed_count"] = int(discovery.get("malformed_count") or 0)
+    counts["truncated_count"] = int(discovery.get("truncated_count") or 0)
+
+    # No dedicated DB columns exist in the supplied schema for these two
+    # counters, so retain them in metadata rather than attempting a migration.
+    discovery_metadata = dict(discovery.get("metadata") or {})
+    discovery_metadata["eligible_count"] = int(discovery.get("eligible_count") or 0)
 
     try:
         prior = _prior_articles(
             company_id,
-            [article["normalized_url"] for article in articles],
+            [article["normalized_url"] for article in articles if article.get("normalized_url")],
         )
     except NewsPersistenceFailure as error:
         _update_run(run_id, {
             **counts,
             "status": "failed",
+            "failed_count": 1,
             "failure_reason": safe_error_summary(error),
+            "metadata": {**discovery_metadata, "progress": {
+                "stage": "failed", "completed": 0, "total": len(articles), "reused": 0,
+            }},
         })
         raise
 
@@ -237,49 +310,59 @@ def ingest_company_news(
         "sector": company.get("sector"),
         "aliases": _company_aliases(company),
     }
+
+    pending_articles: list[dict[str, Any]] = []
     reused_count = 0
-    pending_articles = []
+
+    # Previously classified articles are reused, but still refreshed so their
+    # latest_run_id and last_seen_at reflect this successful discovery.
     for article in articles:
-        previous = prior.get(article["normalized_url"], {})
-        is_classified = (
-            isinstance(previous.get("relevance"), dict)
-            and previous.get("relevance_status") in {"accepted", "rejected"}
-            and previous.get("processing_status") in {
-                "not_relevant", "events_extracted", "no_supported_event"
-            }
-        )
-        if not is_classified:
+        url = article["normalized_url"]
+        previous = prior.get(url, {})
+        if not _classification_is_reusable(previous):
             pending_articles.append(article)
             continue
 
-        reused_count += 1
-        counts[
-            "accepted_count"
-            if previous["relevance_status"] == "accepted"
-            else "rejected_count"
-        ] += 1
+        try:
+            _mark_reused_article_seen(company_id, url, run_id)
+        except NewsPersistenceFailure:
+            counts["failed_count"] += 1
+            counts["persistence_failed_count"] += 1
+            continue
 
+        reused_count += 1
+        if previous["relevance_status"] == "accepted":
+            counts["accepted_count"] += 1
+        else:
+            counts["rejected_count"] += 1
+
+    total_work = len(articles)
+    processed_count = reused_count + (
+        counts["persistence_failed_count"]
+    )
     progress = {
         "stage": "classifying",
-        "completed": reused_count,
-        "total": len(articles),
+        "completed": processed_count,
+        "total": total_work,
         "reused": reused_count,
     }
-    run_metadata = {**discovery["metadata"], "progress": progress}
     _update_run(run_id, {
         **counts,
         "status": "processing",
-        "metadata": run_metadata,
+        "metadata": {**discovery_metadata, "progress": progress},
     }, complete=False)
 
-    processed_count = reused_count
     for offset in range(0, len(pending_articles), CLASSIFICATION_BATCH_SIZE):
         batch = pending_articles[offset:offset + CLASSIFICATION_BATCH_SIZE]
-        batch_results = classify_articles(
-            company_name,
-            batch,
-            company_context=context,
-        )
+        try:
+            batch_results = classify_articles(
+                company_name,
+                batch,
+                company_context=context,
+            )
+        except Exception:
+            logger.exception("Unexpected classification batch error for company %s", company_id)
+            batch_results = [None] * len(batch)
 
         for article, classification in zip(batch, batch_results):
             processed_count += 1
@@ -290,32 +373,30 @@ def ingest_company_news(
 
             try:
                 relevant = bool(
-                    classification["relevant"]
-                    and classification["company_role"] in {"subject", "participant"}
-                    and classification["business_event"]
+                    classification.get("relevant")
+                    and classification.get("company_role") in {"subject", "participant"}
+                    and classification.get("business_event")
                 )
                 previous = prior.get(article["normalized_url"], {})
                 events = []
+
                 if relevant:
-                    counts["accepted_count"] += 1
-                    for event in classification["events"]:
+                    for event in classification.get("events") or []:
                         events.append({
                             **event,
-                            "source_url": article["url"],
+                            "source_url": article.get("url"),
                             "published_at": article.get("published_at"),
                         })
                     if not events and previous.get("events"):
                         events = previous["events"]
-                else:
-                    counts["rejected_count"] += 1
 
                 now = datetime.now(timezone.utc).isoformat()
                 payload = {
                     "company_id": company_id,
                     "latest_run_id": run_id,
                     "normalized_url": article["normalized_url"],
-                    "source_url": article["url"],
-                    "title": article["title"],
+                    "source_url": article.get("url"),
+                    "title": article.get("title"),
                     "publisher": article.get("publisher"),
                     "publisher_url": article.get("publisher_url"),
                     "published_at": article.get("published_at"),
@@ -334,45 +415,83 @@ def ingest_company_news(
                         "rss_url": article.get("rss_url"),
                         "rss_entry_id": article.get("entry_id"),
                         "rss_published_at": article.get("published_at_raw"),
+                        "financial_year_start": article.get("financial_year_start"),
+                        "financial_year_end": article.get("financial_year_end"),
                     },
+                    "first_seen_at": now,
                     "last_seen_at": now,
                     "updated_at": now,
                 }
+                # Do not overwrite first_seen_at on an existing row. It is
+                # preserved by the conflict update below when the row exists.
+                payload.pop("first_seen_at", None)
                 _upsert_article(payload)
-            except Exception:
+
+                # Counters represent successfully persisted outcomes only.
+                if relevant:
+                    counts["accepted_count"] += 1
+                else:
+                    counts["rejected_count"] += 1
+
+            except NewsPersistenceFailure:
                 counts["failed_count"] += 1
                 counts["persistence_failed_count"] += 1
+                logger.exception(
+                    "Could not persist classified article for company %s", company_id
+                )
+            except Exception:
+                # A malformed classifier object is a classification/output
+                # failure, not a database persistence failure.
+                counts["failed_count"] += 1
+                counts["classification_failed_count"] += 1
+                logger.exception(
+                    "Invalid classification result for company %s", company_id
+                )
 
         progress = {
             "stage": "classifying",
             "completed": processed_count,
-            "total": len(articles),
+            "total": total_work,
             "reused": reused_count,
         }
-        run_metadata["progress"] = progress
-        _update_run(run_id, {
-            **counts,
-            "status": "processing",
-            "metadata": run_metadata,
-        }, complete=False)
+        try:
+            _update_run(run_id, {
+                **counts,
+                "status": "processing",
+                "metadata": {**discovery_metadata, "progress": progress},
+            }, complete=False)
+        except NewsPersistenceFailure:
+            logger.exception("Could not update progress for news run %s", run_id)
+            # Continue processing; final status update gets another attempt.
 
-    if counts["failed_count"] and counts["accepted_count"] + counts["rejected_count"] == 0:
+    # Malformed entries and configured truncation are reported separately in
+    # their existing columns. They are not mixed into classification failures.
+    if (
+        counts["failed_count"] > 0
+        and counts["accepted_count"] + counts["rejected_count"] == 0
+    ):
         status = "failed"
-    elif counts["failed_count"]:
+    elif counts["failed_count"] or counts["malformed_count"] or counts["truncated_count"]:
         status = "completed_with_errors"
     else:
         status = "completed"
 
+    failure_reason = _failure_summary(counts, discovery)
+    final_metadata = {
+        **discovery_metadata,
+        "progress": {
+            "stage": "complete",
+            "completed": processed_count,
+            "total": total_work,
+            "reused": reused_count,
+        },
+    }
+
     completed_run = _update_run(run_id, {
         **counts,
         "status": status,
-        "failure_reason": _failure_summary(counts),
-        "metadata": {**discovery["metadata"], "progress": {
-            "stage": "complete",
-            "completed": processed_count,
-            "total": len(articles),
-            "reused": reused_count,
-        }},
+        "failure_reason": failure_reason,
+        "metadata": final_metadata,
     })
     return {"run": completed_run, "counts": counts}
 
@@ -422,21 +541,14 @@ def queue_company_news_ingestion(
     return run
 
 
-def _failure_summary(counts: dict[str, int]) -> str | None:
-    details = []
-    for field, label in (
-        ("classification_failed_count", "classification failures"),
-        ("persistence_failed_count", "persistence failures"),
-        ("malformed_count", "malformed RSS entries"),
-        ("truncated_count", "candidates skipped at the per-run limit"),
-    ):
-        if counts.get(field):
-            details.append(f"{counts[field]} {label}")
-    return "; ".join(details) if details else None
-
-
 def get_company_news(company_id: str, limit: int = 50) -> dict[str, Any]:
-    """Return stored relevant news and the latest ingestion state."""
+    """Return accepted news from the current Indian financial year only."""
+    fy_start, fy_end = get_current_financial_year()
+    india_tz = ZoneInfo("Asia/Kolkata")
+    fy_start_utc = datetime.combine(fy_start, dt_time.min, tzinfo=india_tz).astimezone(timezone.utc)
+    fy_end_exclusive_utc = datetime.combine(
+        fy_end + timedelta(days=1), dt_time.min, tzinfo=india_tz
+    ).astimezone(timezone.utc)
     try:
         article_response = (
             supabase.table("news_articles")
@@ -447,6 +559,8 @@ def get_company_news(company_id: str, limit: int = 50) -> dict[str, Any]:
             )
             .eq("company_id", company_id)
             .eq("relevance_status", "accepted")
+            .gte("published_at", fy_start_utc.isoformat())
+            .lt("published_at", fy_end_exclusive_utc.isoformat())
             .order("published_at", desc=True)
             .limit(limit)
             .execute()
@@ -483,4 +597,13 @@ def get_company_news(company_id: str, limit: int = 50) -> dict[str, Any]:
             else "completed_empty"
         )
 
-    return {"state": state, "articles": articles, "latest_run": latest_run}
+    return {
+        "state": state,
+        "articles": articles,
+        "latest_run": latest_run,
+        "financial_year": {
+            "start_date": fy_start.isoformat(),
+            "end_date": fy_end.isoformat(),
+            "timezone": "Asia/Kolkata",
+        },
+    }
