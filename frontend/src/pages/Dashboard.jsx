@@ -123,14 +123,14 @@ function mapCompanyIntelligence(data, newsData = null) {
     annualEvidence: reportEvidence,
 
     /*
-     * News is read from the database when company details open.
-     * "not_fetched" is deliberately NOT an active ingestion state:
-     * opening a company must never start RSS discovery.
+     * Persisted news articles.
+     *
+     * The initial state is loading because the news endpoint
+     * still needs to be checked.
      */
     recentIntelligence: newsData?.articles || [],
-    newsState: newsData?.state || "not_fetched",
+    newsState: newsData?.state || "loading",
     newsLatestRun: newsData?.latest_run || null,
-    newsLookupLoading: !newsData,
     newsError: null,
 
     processingRuns,
@@ -268,9 +268,12 @@ export default function Dashboard() {
   /*
    * NEWS POLLING
    *
-   * This effect ONLY monitors an ingestion run that is already
-   * active. It does not perform the initial database lookup and
-   * it never starts RSS discovery.
+   * This effect handles:
+   *
+   * 1. Initial news status retrieval.
+   * 2. Background ingestion progress.
+   * 3. Refreshing articles while processing.
+   * 4. Retrying temporary API/network failures.
    *
    * It stops only when the backend returns a terminal state.
    */
@@ -336,8 +339,6 @@ export default function Dashboard() {
 
             newsState: newsData.state,
 
-            newsLookupLoading: false,
-
             newsLatestRun:
               newsData.latest_run || current.newsLatestRun || null,
 
@@ -381,7 +382,6 @@ export default function Dashboard() {
 
           return {
             ...current,
-            newsLookupLoading: false,
             newsError:
               error.message || "Could not refresh news progress.",
           };
@@ -420,11 +420,13 @@ export default function Dashboard() {
   /*
    * ANNUAL REPORT STATUS POLLING
    *
-   * Existing annual report functionality preserved.
+   * Poll the report status while the worker is active.
+   * When it reaches a terminal state, fetch company intelligence
+   * again so newly extracted evidence appears without reopening
+   * the Company Details dialog.
    */
   useEffect(() => {
     const companyId = selectedCompany?.id;
-
     const reportId = selectedCompany?.annualReport?.id;
 
     if (!detailsOpen || !companyId || !reportId) {
@@ -432,11 +434,8 @@ export default function Dashboard() {
     }
 
     let cancelled = false;
-
-    let timerId;
-
+    let timerId = null;
     let inFlight = false;
-
     let failedAttempts = 0;
 
     const schedule = (delay) => {
@@ -445,40 +444,91 @@ export default function Dashboard() {
       }
     };
 
+    const refreshCompanyIntelligence = async (normalized) => {
+      /*
+       * The status endpoint can become terminal before the
+       * details currently held by React have been refreshed.
+       * Fetch the full payload, including evidence and runs.
+       */
+      const latestData = await getCompanyIntelligence(companyId);
+
+      if (cancelled) return;
+
+      setSelectedCompany((current) => {
+        if (
+          current?.id !== companyId ||
+          current?.annualReport?.id !== reportId
+        ) {
+          return current;
+        }
+
+        const preservedNews = {
+          articles: current.recentIntelligence || [],
+          state: current.newsState || "not_fetched",
+          latest_run: current.newsLatestRun || null,
+        };
+
+        const refreshed = mapCompanyIntelligence(
+          latestData,
+          preservedNews
+        );
+
+        return {
+          ...refreshed,
+
+          // Keep the latest news state; this refresh is for annual data.
+          recentIntelligence: current.recentIntelligence || [],
+          newsState: current.newsState,
+          newsLatestRun: current.newsLatestRun,
+          newsError: current.newsError,
+
+          annualReport: {
+            ...refreshed.annualReport,
+            processingStatus: normalized.state,
+            processingStatusLoading: false,
+            processingStatusError: null,
+            job:
+              normalized.job ||
+              refreshed.annualReport?.job ||
+              current.annualReport?.job ||
+              null,
+            processingError: normalized.error || null,
+          },
+        };
+      });
+    };
+
     const poll = async () => {
       if (cancelled || inFlight) return;
 
       inFlight = true;
 
       try {
-        const statusData = await getAnnualReportProcessingStatus(reportId);
+        const statusData =
+          await getAnnualReportProcessingStatus(reportId);
 
         if (cancelled) return;
 
         const normalized = getAnnualReportStatus(statusData);
-
         failedAttempts = 0;
 
+        /*
+         * Update the visible status immediately.
+         */
         setSelectedCompany((current) =>
           current?.annualReport?.id === reportId &&
           current.id === companyId
             ? {
                 ...current,
-
                 annualReport: {
                   ...current.annualReport,
-
                   processingStatus: normalized.state,
-
                   processingStatusLoading: false,
-
                   processingStatusError: null,
-
                   job:
                     normalized.job ||
                     current.annualReport.job ||
                     null,
-
                   processingError: normalized.error,
                 },
               }
@@ -489,6 +539,37 @@ export default function Dashboard() {
 
         if (isAnnualReportActive(normalized.state)) {
           schedule(5000);
+        } else {
+          /*
+           * Terminal state: refresh the complete company payload.
+           * This is the missing step that makes new evidence appear
+           * immediately in the open dialog.
+           */
+          try {
+            await refreshCompanyIntelligence(normalized);
+          } catch (refreshError) {
+            console.error(
+              "Annual report finished, but refreshing company intelligence failed:",
+              refreshError
+            );
+
+            setSelectedCompany((current) =>
+              current?.id === companyId &&
+              current?.annualReport?.id === reportId
+                ? {
+                    ...current,
+                    annualReport: {
+                      ...current.annualReport,
+                      processingStatus: normalized.state,
+                      processingStatusLoading: false,
+                      processingStatusError:
+                        refreshError.message ||
+                        "Report finished, but the latest evidence could not be loaded. Reopen the company or try again.",
+                    },
+                  }
+                : current
+            );
+          }
         }
       } catch (error) {
         if (cancelled) return;
@@ -500,12 +581,9 @@ export default function Dashboard() {
           current.id === companyId
             ? {
                 ...current,
-
                 annualReport: {
                   ...current.annualReport,
-
                   processingStatusLoading: failedAttempts < 3,
-
                   processingStatusError:
                     failedAttempts >= 3
                       ? error.message ||
@@ -531,8 +609,9 @@ export default function Dashboard() {
 
     return () => {
       cancelled = true;
-
-      window.clearTimeout(timerId);
+      if (timerId) {
+        window.clearTimeout(timerId);
+      }
     };
   }, [
     detailsOpen,
@@ -566,9 +645,6 @@ export default function Dashboard() {
 
   /*
    * Select company and load its real intelligence.
-   *
-   * News is always read from the existing database first.
-   * RSS ingestion is started only by handleFetchCompanyNews().
    */
   async function loadCompanyDetails(company) {
     const requestId = ++detailsRequestId.current;
@@ -592,9 +668,10 @@ export default function Dashboard() {
       if (requestId !== detailsRequestId.current) return;
 
       /*
-       * Map company intelligence without starting news ingestion.
-       * The news state remains "not_fetched" until the database
-       * lookup below returns its actual persisted state.
+       * Map the company intelligence response.
+       *
+       * News is initialized as loading. The news polling
+       * effect will retrieve its actual status and articles.
        */
       const mappedCompany = mapCompanyIntelligence(
         backendData,
@@ -626,52 +703,17 @@ export default function Dashboard() {
       setSelectedCompany(mappedCompany);
 
       /*
-       * DATABASE-FIRST NEWS LOOKUP
+       * IMPORTANT:
        *
-       * This is a GET request for already persisted articles and
-       * ingestion status. It must not trigger RSS discovery.
-       * If an ingestion run was already active, the polling effect
-       * will take over after this response sets state to processing.
+       * Do not call getCompanyNews() separately here.
+       *
+       * The NEWS POLLING effect automatically starts
+       * when newsState becomes "loading".
+       *
+       * This avoids competing requests and ensures that
+       * the same polling mechanism handles initial loading
+       * and background ingestion.
        */
-      try {
-        const newsData = await getCompanyNews(company.id);
-
-        if (requestId !== detailsRequestId.current) return;
-
-        setSelectedCompany((current) =>
-          current?.id === company.id
-            ? {
-                ...current,
-                recentIntelligence: Array.isArray(newsData.articles)
-                  ? newsData.articles
-                  : [],
-                newsState: newsData.state || "not_fetched",
-                newsLatestRun: newsData.latest_run || null,
-                newsLookupLoading: false,
-                newsError: null,
-              }
-            : current
-        );
-      } catch (newsError) {
-        if (requestId !== detailsRequestId.current) return;
-
-        console.error(
-          "Failed to load saved company news:",
-          newsError
-        );
-
-        setSelectedCompany((current) =>
-          current?.id === company.id
-            ? {
-                ...current,
-                newsLookupLoading: false,
-                newsError:
-                  newsError.message ||
-                  "Could not load saved news from the database.",
-              }
-            : current
-        );
-      }
     } catch (error) {
       if (requestId !== detailsRequestId.current) return;
 
@@ -858,7 +900,25 @@ export default function Dashboard() {
         retry: company.annualReport.processingStatus === "failed",
       });
 
-      await loadCompanyDetails(company);
+      /*
+       * Do not reload company details here: the workflow runs
+       * asynchronously. The annual-report polling effect will
+       * refresh the full company intelligence when it finishes.
+       */
+      setSelectedCompany((current) =>
+        current?.id === company.id &&
+        current?.annualReport?.id === company.annualReport.id
+          ? {
+              ...current,
+              annualReport: {
+                ...current.annualReport,
+                processingStatus: "processing",
+                processingStatusLoading: false,
+                processingStatusError: null,
+              },
+            }
+          : current
+      );
     } catch (error) {
       setReportActionError(
         error.message || "Annual report processing failed."
@@ -885,8 +945,6 @@ export default function Dashboard() {
           : current.recentIntelligence || [],
 
         newsState: newsData.state,
-
-        newsLookupLoading: false,
 
         newsLatestRun:
           newsData.latest_run ||
@@ -935,7 +993,6 @@ export default function Dashboard() {
         ? {
             ...current,
             newsState: "loading",
-            newsLookupLoading: false,
             newsError: null,
           }
         : current
@@ -955,7 +1012,6 @@ export default function Dashboard() {
           ? {
               ...current,
               newsState: "processing",
-              newsLookupLoading: false,
               newsLatestRun:
                 response.run || current.newsLatestRun || null,
               newsError: null,
