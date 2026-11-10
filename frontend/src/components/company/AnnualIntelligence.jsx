@@ -89,9 +89,9 @@ export default function AnnualIntelligence({
                 : status === "queued"
                   ? "Report is queued and waiting for a processing worker."
                   : status === "processing"
-                    ? "Annual report is being processed."
+                    ? "Annual report is being processed. Kindly wait for the processing to be completed."
                   : status === "completed" && evidence.length === 0
-                    ? "Processing completed; no evidence was found."
+                    ? "Processing completed, no evidence was found."
                     : status === "completed"
                       ? "Annual report processing completed."
                       : status === "unavailable"
