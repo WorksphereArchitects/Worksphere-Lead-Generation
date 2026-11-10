@@ -439,8 +439,8 @@ export default function RecentIntelligence({
         <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-muted-foreground">
           News ingestion finished with some source errors. The available
           articles are displayed above.
-        </div> */
-      )}
+        </div> 
+      )} */
     </div>
   );
 }
