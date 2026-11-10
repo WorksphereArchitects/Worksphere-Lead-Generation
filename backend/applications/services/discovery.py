@@ -3,7 +3,8 @@ import requests
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from email.utils import parsedate_to_datetime
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from urllib.parse import (
     parse_qsl,
     quote,
@@ -16,6 +17,68 @@ from urllib.parse import (
 GOOGLE_NEWS_RSS_URL = (
     "https://news.google.com/rss/search"
 )
+
+
+# Indian financial-year boundaries are calculated from the live system clock.
+# Do not hardcode a financial-year label or start/end year.
+INDIA_TIMEZONE = ZoneInfo("Asia/Kolkata")
+
+
+def get_current_financial_year(reference_datetime=None):
+    """Return the current Indian FY boundaries in Asia/Kolkata.
+
+    The financial year runs from 1 April through 31 March. The returned end
+    date is inclusive and is capped at today's local date for discovery.
+    """
+    if reference_datetime is None:
+        local_now = datetime.now(INDIA_TIMEZONE)
+    elif reference_datetime.tzinfo is None:
+        local_now = reference_datetime.replace(tzinfo=INDIA_TIMEZONE)
+    else:
+        local_now = reference_datetime.astimezone(INDIA_TIMEZONE)
+
+    today = local_now.date()
+    start_year = today.year if today.month >= 4 else today.year - 1
+    start_date = date(start_year, 4, 1)
+    financial_year_end = date(start_year + 1, 3, 31)
+    effective_end_date = min(today, financial_year_end)
+    return start_date, effective_end_date
+
+
+def _parse_published_date(value):
+    """Parse an RSS publication timestamp into an India-local calendar date."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError, OverflowError):
+        try:
+            parsed = parsedate_to_datetime(str(value))
+        except (TypeError, ValueError, OverflowError):
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(INDIA_TIMEZONE).date()
+
+
+def is_in_current_financial_year(published_at, reference_datetime=None):
+    """Return True only when a valid publication date falls in the current FY."""
+    published_date = _parse_published_date(published_at)
+    if published_date is None:
+        return False
+    start_date, end_date = get_current_financial_year(reference_datetime)
+    return start_date <= published_date <= end_date
+
+
+def build_current_financial_year_query(search_query, reference_datetime=None):
+    """Build a Google News query bounded to the current Indian financial year."""
+    start_date, end_date = get_current_financial_year(reference_datetime)
+    # Google News' before: operator is exclusive, so use the following day.
+    exclusive_end = end_date + timedelta(days=1)
+    return (
+        f"{search_query} after:{start_date.isoformat()} "
+        f"before:{exclusive_end.isoformat()}"
+    )
 
 
 DISCOVERY_QUERIES = {
@@ -680,8 +743,14 @@ NEWS_SEARCH_TERMS = (
 )
 
 
-def discover_company_news(company, aliases=None, days=30, max_articles=40):
-    """Discover one company's recent business news from Google News RSS."""
+def discover_company_news(company, aliases=None, days=None, max_articles=None):
+    """Discover company news published in the current Indian financial year.
+
+    ``days`` is retained for call-site compatibility but is intentionally not
+    used as the date boundary. The financial year is always derived from the
+    current Asia/Kolkata system date. ``max_articles`` is an optional safety
+    cap; by default no candidates are truncated.
+    """
     company_name = (company.get("name") or "").strip()
     symbol = (company.get("symbol") or "").strip()
     if not company_name:
@@ -695,19 +764,24 @@ def discover_company_news(company, aliases=None, days=30, max_articles=40):
         if term and term.casefold() not in seen_terms:
             seen_terms.add(term.casefold())
             unique_terms.append(term)
+
     company_query = " OR ".join(
         f'"{term.replace(chr(34), "")}"' for term in unique_terms[:8]
     )
     event_query = " OR ".join(f'"{term}"' for term in NEWS_SEARCH_TERMS)
-    rss_url = build_google_news_query_url(
-        f"({company_query}) ({event_query})", days
-    )
+    search_query = f"({company_query}) ({event_query})"
+    rss_query = build_current_financial_year_query(search_query)
+    rss_url = build_google_news_query_url(rss_query)
 
+    start_date, end_date = get_current_financial_year()
     entries = parse_rss_feed(rss_url)
     articles = []
     duplicate_count = 0
     malformed_count = 0
+    missing_date_count = 0
+    out_of_period_count = 0
     truncated_count = 0
+    eligible_count = 0
     seen_urls = set()
 
     for entry in entries:
@@ -717,12 +791,22 @@ def discover_company_news(company, aliases=None, days=30, max_articles=40):
         if not title or not normalized_url:
             malformed_count += 1
             continue
+
+        published_date = _parse_published_date(entry.get("published_at"))
+        if published_date is None:
+            missing_date_count += 1
+            continue
+        if not (start_date <= published_date <= end_date):
+            out_of_period_count += 1
+            continue
+
         if normalized_url in seen_urls:
             duplicate_count += 1
             continue
-
         seen_urls.add(normalized_url)
-        if len(articles) >= max_articles:
+        eligible_count += 1
+
+        if max_articles is not None and len(articles) >= max_articles:
             truncated_count += 1
             continue
 
@@ -735,18 +819,32 @@ def discover_company_news(company, aliases=None, days=30, max_articles=40):
             "discovery_query": "company plus business-event terms",
             "discovery_source": "google_news_rss",
             "rss_url": rss_url,
+            "financial_year_start": start_date.isoformat(),
+            "financial_year_end": end_date.isoformat(),
         })
+
     return {
         "articles": articles,
         "entry_count": len(entries),
+        "eligible_count": eligible_count,
         "duplicate_count": duplicate_count,
         "malformed_count": malformed_count,
+        "missing_date_count": missing_date_count,
+        "out_of_period_count": out_of_period_count,
         "truncated_count": truncated_count,
         "metadata": {
             "provider": "google_news_rss",
-            "lookback_days": days,
-            "truncated_count": truncated_count,
+            "financial_year_start": start_date.isoformat(),
+            "financial_year_end": end_date.isoformat(),
+            "financial_year_timezone": "Asia/Kolkata",
+            "lookback_days_ignored": days,
+            "entry_count": len(entries),
+            "eligible_count": eligible_count,
+            "duplicate_count": duplicate_count,
             "malformed_count": malformed_count,
+            "missing_date_count": missing_date_count,
+            "out_of_period_count": out_of_period_count,
+            "truncated_count": truncated_count,
         },
     }
 
@@ -809,6 +907,10 @@ def discover_from_rss(
                         event_type,
                     )
                 )
+                filtered = [
+                    entry for entry in filtered
+                    if is_in_current_financial_year(entry.get("published_at"))
+                ]
 
                 for entry in filtered:
 
@@ -882,9 +984,8 @@ if __name__ == "__main__":
         f"\nSearching RSS for: {company}"
     )
 
-    print(
-        f"Time window: {days} days\n"
-    )
+    fy_start, fy_end = get_current_financial_year()
+    print(f"Financial year window: {fy_start} to {fy_end} (Asia/Kolkata)\n")
 
     results = discover_from_rss(
         company_name=company,
