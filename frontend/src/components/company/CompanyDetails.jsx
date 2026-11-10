@@ -167,19 +167,19 @@ export default function CompanyDetails({
                       description="Extracted business events"
                     />
 
-                    <SummaryCard
+                    {/* <SummaryCard
                       icon={CheckCircle2}
                       label="Resolved sources"
                       value={resolvedCount}
                       description="Evidence linked to source text"
-                    />
+                    /> */}
 
-                    <SummaryCard
+                    {/* <SummaryCard
                       icon={FileText}
                       label="Unresolved sources"
                       value={unresolvedCount}
                       description="Evidence requiring source resolution"
-                    />
+                    /> */}
 
                     <SummaryCard
                       icon={Newspaper}
