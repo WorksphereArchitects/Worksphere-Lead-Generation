@@ -123,14 +123,14 @@ function mapCompanyIntelligence(data, newsData = null) {
     annualEvidence: reportEvidence,
 
     /*
-     * Persisted news articles.
-     *
-     * The initial state is loading because the news endpoint
-     * still needs to be checked.
+     * News is read from the database when company details open.
+     * "not_fetched" is deliberately NOT an active ingestion state:
+     * opening a company must never start RSS discovery.
      */
     recentIntelligence: newsData?.articles || [],
-    newsState: newsData?.state || "loading",
+    newsState: newsData?.state || "not_fetched",
     newsLatestRun: newsData?.latest_run || null,
+    newsLookupLoading: !newsData,
     newsError: null,
 
     processingRuns,
@@ -268,12 +268,9 @@ export default function Dashboard() {
   /*
    * NEWS POLLING
    *
-   * This effect handles:
-   *
-   * 1. Initial news status retrieval.
-   * 2. Background ingestion progress.
-   * 3. Refreshing articles while processing.
-   * 4. Retrying temporary API/network failures.
+   * This effect ONLY monitors an ingestion run that is already
+   * active. It does not perform the initial database lookup and
+   * it never starts RSS discovery.
    *
    * It stops only when the backend returns a terminal state.
    */
@@ -339,6 +336,8 @@ export default function Dashboard() {
 
             newsState: newsData.state,
 
+            newsLookupLoading: false,
+
             newsLatestRun:
               newsData.latest_run || current.newsLatestRun || null,
 
@@ -382,6 +381,7 @@ export default function Dashboard() {
 
           return {
             ...current,
+            newsLookupLoading: false,
             newsError:
               error.message || "Could not refresh news progress.",
           };
@@ -566,6 +566,9 @@ export default function Dashboard() {
 
   /*
    * Select company and load its real intelligence.
+   *
+   * News is always read from the existing database first.
+   * RSS ingestion is started only by handleFetchCompanyNews().
    */
   async function loadCompanyDetails(company) {
     const requestId = ++detailsRequestId.current;
@@ -589,10 +592,9 @@ export default function Dashboard() {
       if (requestId !== detailsRequestId.current) return;
 
       /*
-       * Map the company intelligence response.
-       *
-       * News is initialized as loading. The news polling
-       * effect will retrieve its actual status and articles.
+       * Map company intelligence without starting news ingestion.
+       * The news state remains "not_fetched" until the database
+       * lookup below returns its actual persisted state.
        */
       const mappedCompany = mapCompanyIntelligence(
         backendData,
@@ -624,17 +626,52 @@ export default function Dashboard() {
       setSelectedCompany(mappedCompany);
 
       /*
-       * IMPORTANT:
+       * DATABASE-FIRST NEWS LOOKUP
        *
-       * Do not call getCompanyNews() separately here.
-       *
-       * The NEWS POLLING effect automatically starts
-       * when newsState becomes "loading".
-       *
-       * This avoids competing requests and ensures that
-       * the same polling mechanism handles initial loading
-       * and background ingestion.
+       * This is a GET request for already persisted articles and
+       * ingestion status. It must not trigger RSS discovery.
+       * If an ingestion run was already active, the polling effect
+       * will take over after this response sets state to processing.
        */
+      try {
+        const newsData = await getCompanyNews(company.id);
+
+        if (requestId !== detailsRequestId.current) return;
+
+        setSelectedCompany((current) =>
+          current?.id === company.id
+            ? {
+                ...current,
+                recentIntelligence: Array.isArray(newsData.articles)
+                  ? newsData.articles
+                  : [],
+                newsState: newsData.state || "not_fetched",
+                newsLatestRun: newsData.latest_run || null,
+                newsLookupLoading: false,
+                newsError: null,
+              }
+            : current
+        );
+      } catch (newsError) {
+        if (requestId !== detailsRequestId.current) return;
+
+        console.error(
+          "Failed to load saved company news:",
+          newsError
+        );
+
+        setSelectedCompany((current) =>
+          current?.id === company.id
+            ? {
+                ...current,
+                newsLookupLoading: false,
+                newsError:
+                  newsError.message ||
+                  "Could not load saved news from the database.",
+              }
+            : current
+        );
+      }
     } catch (error) {
       if (requestId !== detailsRequestId.current) return;
 
@@ -849,6 +886,8 @@ export default function Dashboard() {
 
         newsState: newsData.state,
 
+        newsLookupLoading: false,
+
         newsLatestRun:
           newsData.latest_run ||
           fallbackRun ||
@@ -896,6 +935,7 @@ export default function Dashboard() {
         ? {
             ...current,
             newsState: "loading",
+            newsLookupLoading: false,
             newsError: null,
           }
         : current
@@ -915,6 +955,7 @@ export default function Dashboard() {
           ? {
               ...current,
               newsState: "processing",
+              newsLookupLoading: false,
               newsLatestRun:
                 response.run || current.newsLatestRun || null,
               newsError: null,
