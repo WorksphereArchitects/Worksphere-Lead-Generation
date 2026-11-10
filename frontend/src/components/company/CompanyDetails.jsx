@@ -65,6 +65,7 @@ export default function CompanyDetails({
   // throughout background ingestion.
   const newsLoading =
     newsActionLoading ||
+    Boolean(company.newsLookupLoading) ||
     isNewsProcessing(company.newsState);
 
   return (

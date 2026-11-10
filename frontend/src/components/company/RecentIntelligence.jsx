@@ -193,7 +193,13 @@ export default function RecentIntelligence({
               }`}
             />
 
-            {isFetching ? "Fetching news…" : "Refresh news"}
+            {isFetching
+              ? newsState === "processing"
+                ? "Fetching news…"
+                : "Loading saved news…"
+              : news.length > 0
+                ? "Refresh News"
+                : "Fetch News"}
           </Button>
         )}
       </div>
@@ -211,7 +217,7 @@ export default function RecentIntelligence({
           <p className="mt-2 text-sm text-muted-foreground">
             {typeof hasNewsError === "string"
               ? hasNewsError
-              : "We couldn't retrieve news for this company. Check the browser console for debugging details."}
+              : "We couldn't load news for this company. Please try again."}
           </p>
 
           {onFetchNews && (

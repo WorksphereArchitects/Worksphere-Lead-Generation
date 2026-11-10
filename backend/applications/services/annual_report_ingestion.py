@@ -667,9 +667,9 @@ def fetch_annual_report_financialfilings(
         (FY 2025-26).
 
     Credit usage:
-        One FinancialFilings API request is made to discover filing metadata.
-        The PDF is downloaded directly from the returned CDN URL, without
-        calling /filings/{id}/document/.
+        The filing-list request costs one credit. The CDN is attempted first
+        without an API credit. Only if that download fails or is not a valid
+        PDF, /filings/{id}/document/ is called as a one-credit fallback.
 
     Returns a result compatible with the existing ingestion result shape,
     with FinancialFilings provenance fields added. This function does not
@@ -908,7 +908,153 @@ def fetch_annual_report_financialfilings(
         local_path.unlink()
 
     # --------------------------------------------------------
-    # Download directly from the CDN
+    # Download helpers
+    # --------------------------------------------------------
+
+    def download_and_validate_pdf(
+        url: str,
+        destination: Path,
+        *,
+        headers: dict[str, str] | None = None,
+        allow_redirects: bool = True,
+    ) -> int:
+        """
+        Stream a document to disk and verify its PDF signature.
+        Deletes incomplete/invalid files before raising.
+        """
+        total = 0
+
+        try:
+            with requests.get(
+                url,
+                headers=headers or {},
+                timeout=90,
+                stream=True,
+                allow_redirects=allow_redirects,
+            ) as download_response:
+                download_response.raise_for_status()
+
+                with destination.open("wb") as output_file:
+                    for chunk in download_response.iter_content(
+                        chunk_size=256 * 1024
+                    ):
+                        if chunk:
+                            output_file.write(chunk)
+                            total += len(chunk)
+
+            if total == 0:
+                raise ValueError("The document response was empty.")
+
+            with destination.open("rb") as downloaded_file:
+                signature = downloaded_file.read(5)
+
+            if signature != b"%PDF-":
+                raise ValueError(
+                    "The downloaded document is not a valid PDF "
+                    "(missing %PDF- signature)."
+                )
+
+            return total
+
+        except Exception:
+            destination.unlink(missing_ok=True)
+            raise
+
+    def download_via_document_endpoint(
+        destination: Path,
+    ) -> int:
+        """
+        Use FinancialFilings' authenticated document endpoint.
+
+        A 200 response contains the document and is billed according to
+        the endpoint's price. A 302 response is a free redirect to the
+        stored document; the redirected CDN download itself is not an
+        additional FinancialFilings API call.
+        """
+        document_api_url = (
+            f"https://api.financialreports.eu/filings/"
+            f"{filing_id}/document/"
+        )
+
+        print(
+            f"CDN download failed for {symbol}; "
+            "trying FinancialFilings document endpoint (fallback credit)..."
+        )
+
+        with requests.get(
+            document_api_url,
+            headers={
+                "X-API-Key": api_key,
+                "Accept": "application/pdf,application/octet-stream,*/*",
+            },
+            timeout=90,
+            stream=True,
+            allow_redirects=False,
+        ) as document_response:
+
+            charged = document_response.headers.get(
+                "X-Credits-Charged",
+                "not supplied",
+            )
+            print(
+                "FinancialFilings document endpoint credits charged:",
+                charged,
+            )
+
+            if document_response.status_code in (301, 302, 303, 307, 308):
+                redirect_url = document_response.headers.get("Location")
+                if not redirect_url:
+                    raise ValueError(
+                        "FinancialFilings document endpoint returned a "
+                        "redirect without a Location header."
+                    )
+
+            else:
+                document_response.raise_for_status()
+
+                # A successful 200 response contains the PDF itself.
+                total = 0
+                try:
+                    with destination.open("wb") as output_file:
+                        for chunk in document_response.iter_content(
+                            chunk_size=256 * 1024
+                        ):
+                            if chunk:
+                                output_file.write(chunk)
+                                total += len(chunk)
+
+                    if total == 0:
+                        raise ValueError(
+                            "FinancialFilings document endpoint returned "
+                            "an empty document."
+                        )
+
+                    with destination.open("rb") as downloaded_file:
+                        signature = downloaded_file.read(5)
+
+                    if signature != b"%PDF-":
+                        raise ValueError(
+                            "FinancialFilings document endpoint did not "
+                            "return a valid PDF."
+                        )
+
+                    return total
+
+                except Exception:
+                    destination.unlink(missing_ok=True)
+                    raise
+
+        # Follow the redirect outside the API response context.
+        return download_and_validate_pdf(
+            redirect_url,
+            destination,
+            headers={
+                "Accept": "application/pdf,application/octet-stream,*/*",
+            },
+        )
+
+    # --------------------------------------------------------
+    # First attempt: direct CDN download (no API credit)
     # --------------------------------------------------------
 
     print(
@@ -916,46 +1062,31 @@ def fetch_annual_report_financialfilings(
         f"for {symbol} directly from FinancialFilings CDN..."
     )
 
-    total_bytes = 0
-
-    with requests.get(
-        cdn_url,
-        headers={
-            "Accept": "application/pdf,application/octet-stream,*/*",
-        },
-        timeout=90,
-        stream=True,
-    ) as download_response:
-
-        download_response.raise_for_status()
-
-        with local_path.open("wb") as output_file:
-            for chunk in download_response.iter_content(
-                chunk_size=256 * 1024
-            ):
-                if chunk:
-                    output_file.write(chunk)
-                    total_bytes += len(chunk)
-
-    # --------------------------------------------------------
-    # Validate downloaded PDF
-    # --------------------------------------------------------
-
-    if total_bytes == 0:
-        local_path.unlink(missing_ok=True)
-        raise ValueError(
-            "FinancialFilings CDN returned an empty document."
+    try:
+        total_bytes = download_and_validate_pdf(
+            str(cdn_url),
+            local_path,
+            headers={
+                "Accept": "application/pdf,application/octet-stream,*/*",
+            },
         )
 
-    with local_path.open("rb") as downloaded_file:
-        pdf_signature = downloaded_file.read(5)
+        download_method = "cdn"
 
-    if pdf_signature != b"%PDF-":
-        local_path.unlink(missing_ok=True)
-        raise ValueError(
-            "Downloaded FinancialFilings document is not a valid PDF. "
-            "The file does not start with the %PDF- signature."
+    except (requests.RequestException, ValueError) as cdn_error:
+        print(
+            f"FinancialFilings CDN retrieval failed for {symbol}: "
+            f"{cdn_error}"
         )
+        print(
+            "Activating the one-credit document-endpoint fallback..."
+        )
+
+        # Second API credit is used only after CDN failure/invalid PDF.
+        total_bytes = download_via_document_endpoint(
+            local_path
+        )
+        download_method = "document_endpoint"
 
     print(
         "Annual report downloaded successfully:"
@@ -971,6 +1102,9 @@ def fetch_annual_report_financialfilings(
     )
     print(
         f"  Size: {total_bytes:,} bytes"
+    )
+    print(
+        f"  Download method: {download_method}"
     )
 
     return {
@@ -998,6 +1132,7 @@ def fetch_annual_report_financialfilings(
         "source_filing_id": str(filing_id),
         "source_document_url": cdn_url,
         "source_company_isin": isin,
+        "download_method": download_method,
     }
 
 
@@ -1084,6 +1219,8 @@ def ingest_annual_report_financialfilings(
         FinancialFilings metadata discovery
               ↓
         Direct CDN PDF download
+              ↓ (only if CDN fails)
+        Authenticated document-endpoint fallback
               ↓
         PDF text extraction
               ↓
